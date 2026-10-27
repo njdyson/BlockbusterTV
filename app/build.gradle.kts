@@ -14,8 +14,11 @@ android {
         // API 22 = Fire OS 5, the oldest Fire TV Stick firmware still in use.
         minSdk = 22
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-linklab"
+        // GitHub Actions run number, so every published build is newer than the last.
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = build
+        versionName = "0.1.$build"
+        buildConfigField("String", "GIT_SHA", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
     }
 
     signingConfigs {
@@ -45,6 +48,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

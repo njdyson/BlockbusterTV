@@ -52,6 +52,8 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.njdyson.blockbustertv.ui.NightNavy
+import com.njdyson.blockbustertv.update.UpdateButton
+import com.njdyson.blockbustertv.update.Updater
 import com.njdyson.blockbustertv.ui.ShelfGrey
 import com.njdyson.blockbustertv.ui.TicketYellow
 
@@ -180,8 +182,14 @@ private fun Header(
             Button(onClick = onReport) { Text("Show results QR") }
             Spacer(Modifier.width(12.dp))
             OutlinedButton(onClick = onClear) { Text("Clear results") }
+            Spacer(Modifier.width(12.dp))
+            UpdateButton()
         }
-        Text(device.toString(), color = Color.White, fontSize = 14.sp)
+        Text(
+            "$device · build ${Updater.currentVersion} (${Updater.currentSha})",
+            color = Color.White,
+            fontSize = 14.sp,
+        )
         Text(
             "Streaming apps found: " + apps.ifEmpty { listOf("none") }.joinToString(", "),
             color = Color.White.copy(alpha = 0.7f),

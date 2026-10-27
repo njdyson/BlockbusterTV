@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: build-apk
-  cancel-in-progress: true
+  # Never cancel mid-publish: the release is deleted and recreated in the last step.
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,6 +28,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleDebug
       - run: cp app/build/outputs/apk/debug/app-debug.apk BlockbusterTV.apk
+      # Read by the app's "Check for update" button.
+      - run: |
+          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"sha\": \"${GITHUB_SHA::7}\"}" > version.json
+          cat version.json
       - uses: actions/upload-artifact@v4
         with:
           name: BlockbusterTV-apk
@@ -36,8 +41,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete apk-latest --cleanup-tag --yes || true
-          gh release create apk-latest BlockbusterTV.apk \
+          gh release create apk-latest BlockbusterTV.apk version.json \
             --title "Latest APK" \
-            --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}." \
+            --notes "Build ${GITHUB_RUN_NUMBER}, from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}." \
             --target "$GITHUB_SHA" \
             --latest

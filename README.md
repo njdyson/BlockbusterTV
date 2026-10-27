@@ -14,4 +14,7 @@ happened. The links live in `app/src/main/assets/link_tests.json`.
 3. On the stick, open BlockbusterTV, press each link, return, and record the outcome.
 4. Press **Show results QR**, scan it with a phone and share the text.
 
+After the first install, use the **Check for update** button in the app: it
+fetches the newest build from GitHub and opens the installer.
+
 Refresh the test films (they rotate off services): `python3 tools/fetch_link_tests.py`.
