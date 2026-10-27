@@ -8,14 +8,15 @@
 <style>
   :root {
     --navy: #0A143C; --blue: #102E8C; --shelf: #1C2550; --yellow: #FFCC00;
-    --text: #FFFFFF; --muted: rgba(255,255,255,.65); --danger: #FF6B6B;
+    --text: #FFFFFF; --muted: rgba(255,255,255,.65); --good: #4CAF50;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
   body {
     margin: 0; background: var(--navy); color: var(--text);
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: 0 16px 48px;
+    padding: 0 16px calc(48px + env(safe-area-inset-bottom));
   }
   header {
     position: sticky; top: 0; z-index: 2; background: var(--navy);
@@ -26,9 +27,9 @@
   .logo + b { font-weight: 900; }
   #status { margin-left: auto; font-size: 12px; color: var(--muted); }
   h2 { font-size: 13px; letter-spacing: 2px; color: var(--yellow); margin: 22px 0 8px; }
-  form.search { display: flex; gap: 8px; }
+  .search { position: relative; }
   input[type=search] {
-    flex: 1; min-width: 0; font: inherit; padding: 11px 12px; border-radius: 8px;
+    width: 100%; font: inherit; font-size: 17px; padding: 12px 40px 12px 14px; border-radius: 10px;
     border: 2px solid transparent; background: #fff; color: #111;
   }
   input[type=search]:focus { outline: none; border-color: var(--yellow); }
@@ -39,14 +40,18 @@
   button.ghost { background: rgba(255,255,255,.12); color: var(--text); font-weight: 600; }
   button.small { padding: 6px 9px; font-size: 14px; }
   button:disabled { opacity: .4; }
-  .results { display: grid; gap: 8px; margin-top: 10px; }
-  .result { display: flex; gap: 10px; align-items: center; background: var(--shelf); border-radius: 8px; padding: 8px; }
-  .result img { width: 46px; height: 69px; object-fit: cover; border-radius: 4px; background: #000; flex: none; }
-  .result .info { flex: 1; min-width: 0; }
-  .result .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .result .year { color: var(--muted); font-size: 14px; }
-  .add-to { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--muted); }
-  select { font: inherit; padding: 8px; border-radius: 8px; border: 0; max-width: 60%; }
+
+  /* Search results: a grid of posters, tap one to choose a shelf. minmax(0, …) stops
+     long titles widening the page. */
+  .results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .result { all: unset; cursor: pointer; display: block; min-width: 0; -webkit-tap-highlight-color: transparent; }
+  .result .poster { position: relative; }
+  .result img, .result .noposter { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+  .result .title { font-weight: 700; font-size: 13px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result .year { color: var(--muted); font-size: 12px; }
+  .badge { position: absolute; top: 6px; right: 6px; background: var(--good); color: #fff; border-radius: 999px;
+           font-size: 11px; font-weight: 700; padding: 2px 7px; }
+
   .shelf { background: var(--shelf); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
   .shelf-name { font-weight: 800; font-size: 18px; overflow-wrap: anywhere; }
   .shelf-tools { display: flex; gap: 6px; margin-top: 8px; }
@@ -54,7 +59,6 @@
   .film { flex: none; width: 96px; scroll-snap-align: start; }
   .film img, .film .noposter { width: 96px; height: 144px; object-fit: cover; border-radius: 5px; background: #000; display: block; }
   .noposter { display: flex !important; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: 12px; color: var(--muted); }
-  .result .noposter { width: 46px; height: 69px; flex: none; background: #000; border-radius: 4px; }
   .film .name { font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .film .tools { display: flex; gap: 4px; margin-top: 4px; }
   .film .tools button { flex: 1; padding: 4px 0; font-size: 13px; }
@@ -62,17 +66,35 @@
   .error { background: #5c1a1a; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
   footer { margin-top: 24px; font-size: 13px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
   footer a { color: var(--yellow); }
+
+  /* Bottom sheet: "Add <film> to…" */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--shelf);
+    border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 80vh; overflow-y: auto; box-shadow: 0 -8px 30px rgba(0,0,0,.4);
+  }
+  .sheet-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .sheet-head img, .sheet-head .noposter { width: 48px; height: 72px; border-radius: 5px; object-fit: cover; flex: none; background: #000; }
+  .sheet-head .t { font-weight: 800; font-size: 18px; line-height: 1.2; }
+  .sheet-head .y { color: var(--muted); font-size: 14px; }
+  .choices { display: grid; gap: 8px; }
+  .choices button { width: 100%; text-align: left; padding: 14px 16px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+  .choices button.on { background: rgba(76,175,80,.25); color: #fff; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
+    z-index: 20; box-shadow: 0 6px 20px rgba(0,0,0,.35); max-width: calc(100% - 32px); text-align: center;
+  }
 </style>
 </head>
 <body>
 <header><span class="logo">BLOCKBUSTER</span><b>TV</b><span id="status"></span></header>
 
 <h2>ADD A FILM</h2>
-<form class="search" id="searchForm">
-  <input type="search" id="q" placeholder="Search for a film" autocomplete="off" enterkeyhint="search">
-  <button>Search</button>
-</form>
-<div class="add-to" id="addTo" hidden>Add to <select id="target"></select></div>
+<div class="search">
+  <input type="search" id="q" placeholder="Start typing a film title" autocomplete="off" autocorrect="off" enterkeyhint="search">
+</div>
 <div class="results" id="results"></div>
 
 <h2>YOUR SHELVES</h2>
@@ -85,9 +107,13 @@
   <a id="backup" href="#">Download backup</a>
 </footer>
 
+<div id="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
 <script>
 const key = new URLSearchParams(location.search).get("k") || "";
 let shelves = [];
+let results = [];
 let busy = false;
 
 const $ = (id) => document.getElementById(id);
@@ -109,6 +135,14 @@ async function api(path, body) {
 
 function showError(e) {
   $("error").replaceChildren(e ? el("div", { className: "error", textContent: String(e.message || e) }) : "");
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 2200);
 }
 
 async function load() {
@@ -133,8 +167,13 @@ async function op(body) {
     shelves = (await api("/api/op", body)).shelves;
     render();
     showError(null);
-  } catch (e) { showError(e); }
-  busy = false;
+    return true;
+  } catch (e) {
+    showError(e);
+    return false;
+  } finally {
+    busy = false;
+  }
 }
 
 function poster(film) {
@@ -143,28 +182,26 @@ function poster(film) {
     : el("div", { className: "noposter", textContent: film.title });
 }
 
-function render() {
-  const target = $("target");
-  const chosen = target.value;
-  target.replaceChildren(...shelves.map((s) => el("option", { value: s.id, textContent: s.name })));
-  if (shelves.some((s) => s.id === chosen)) target.value = chosen;
+const shelvesWith = (film) => shelves.filter((s) => s.films.some((f) => f.jwId === film.jwId));
 
+function render() {
+  renderResults();
   $("shelves").replaceChildren(...shelves.map((shelf, i) => {
     const head = el("div", {},
       el("div", { className: "shelf-name", textContent: shelf.name }),
       el("div", { className: "shelf-tools" },
-      el("button", { className: "ghost small", textContent: "↑", title: "Move up", disabled: i === 0,
-        onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: -1 }) }),
-      el("button", { className: "ghost small", textContent: "↓", title: "Move down", disabled: i === shelves.length - 1,
-        onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: 1 }) }),
-      el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
-        const name = prompt("Shelf name", shelf.name);
-        if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
-      } }),
-      el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
-        if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
-      } }),
-    ));
+        el("button", { className: "ghost small", textContent: "↑", title: "Move up", disabled: i === 0,
+          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: -1 }) }),
+        el("button", { className: "ghost small", textContent: "↓", title: "Move down", disabled: i === shelves.length - 1,
+          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: 1 }) }),
+        el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+          const name = prompt("Shelf name", shelf.name);
+          if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
+        } }),
+        el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
+          if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
+        } }),
+      ));
     const films = shelf.films.length
       ? el("div", { className: "films" }, ...shelf.films.map((f, j) => el("div", { className: "film" },
           poster(f),
@@ -182,34 +219,79 @@ function render() {
   }));
 }
 
-$("searchForm").onsubmit = async (e) => {
-  e.preventDefault();
+function renderResults() {
+  $("results").replaceChildren(...results.map((film) => {
+    const on = shelvesWith(film).length;
+    return el("button", { className: "result", onclick: () => openSheet(film) },
+      el("div", { className: "poster" }, poster(film), ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
+      el("div", { className: "title", textContent: film.title }),
+      el("div", { className: "year", textContent: film.year || "" }));
+  }));
+}
+
+// Search as you type, ignoring answers that arrive after a newer search started.
+let searchTimer, searchSeq = 0;
+$("q").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 350);
+});
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { clearTimeout(searchTimer); search(); $("q").blur(); }
+});
+
+async function search() {
   const q = $("q").value.trim();
-  if (!q) return;
-  $("q").blur();
-  $("results").replaceChildren(el("div", { className: "empty", textContent: "Searching…" }));
+  const seq = ++searchSeq;
+  if (!q) { results = []; renderResults(); return; }
   try {
-    const results = await api("/api/search?q=" + encodeURIComponent(q));
-    $("addTo").hidden = results.length === 0 || shelves.length === 0;
-    $("results").replaceChildren(...(results.length ? results.map((film) => el("div", { className: "result" },
-      poster(film),
-      el("div", { className: "info" },
-        el("div", { className: "title", textContent: film.title }),
-        el("div", { className: "year", textContent: film.year || "" })),
-      el("button", { textContent: "Add", onclick: async (ev) => {
-        if (!shelves.length) {
-          const name = prompt("Name your first shelf", "Saturday night");
-          if (!name) return;
-          await op({ op: "addShelf", name });
-        }
-        const shelf = $("target").value || shelves[0].id;
-        await op({ op: "addFilm", shelf, film });
-        ev.target.textContent = "Added";
-        ev.target.disabled = true;
-      } }),
-    )) : [el("div", { className: "empty", textContent: "No films found." })]));
+    const found = await api("/api/search?q=" + encodeURIComponent(q));
+    if (seq !== searchSeq) return;
+    results = found;
+    renderResults();
+    if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: "No films found." }));
   } catch (err) { showError(err); }
-};
+}
+
+function openSheet(film) {
+  $("q").blur();
+  const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
+  const draw = () => {
+    const choices = shelves.map((shelf) => {
+      const on = shelf.films.some((f) => f.jwId === film.jwId);
+      return el("button", {
+        className: on ? "ghost on" : "",
+        onclick: async () => {
+          if (on) return;
+          if (await op({ op: "addFilm", shelf: shelf.id, film })) {
+            toast(`Added ${film.title} to ${shelf.name}`);
+            close();
+          }
+        },
+      }, el("span", { textContent: shelf.name }), el("span", { textContent: on ? "✓ On shelf" : "Add" }));
+    });
+    const newShelf = el("button", { className: "ghost", onclick: async () => {
+      const name = prompt("New shelf name");
+      if (!name || !name.trim()) return;
+      if (await op({ op: "addShelf", name })) {
+        const shelf = shelves[shelves.length - 1];
+        if (await op({ op: "addFilm", shelf: shelf.id, film })) {
+          toast(`Added ${film.title} to ${shelf.name}`);
+          close();
+        }
+      }
+    } }, el("span", { textContent: "+ New shelf…" }), el("span"));
+    $("sheet").replaceChildren(
+      el("div", { className: "scrim", onclick: close }),
+      el("div", { className: "sheet" },
+        el("div", { className: "sheet-head" }, poster(film),
+          el("div", {}, el("div", { className: "t", textContent: film.title }), el("div", { className: "y", textContent: film.year || "" }))),
+        el("div", { className: "choices" }, ...choices, newShelf,
+          el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
+      ));
+  };
+  draw();
+  $("sheet").hidden = false;
+}
 
 $("newShelf").onclick = () => {
   const name = prompt("New shelf name");

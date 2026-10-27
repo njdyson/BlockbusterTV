@@ -35,7 +35,7 @@ class JustWatch(private val services: Services) {
     /** Films matching a title search, most popular first. */
     suspend fun search(text: String): List<ShelfFilm> = withContext(Dispatchers.IO) {
         if (text.isBlank()) return@withContext emptyList()
-        val query = """{ popularTitles(country: GB, first: 24, filter: {objectTypes: [MOVIE], searchQuery: ${Json.encodeToString(String.serializer(), text.trim())}}) {
+        val query = """{ popularTitles(country: GB, first: 12, filter: {objectTypes: [MOVIE], searchQuery: ${Json.encodeToString(String.serializer(), text.trim())}}) {
             edges { node { id ... on Movie { content(country: GB, language: "en") { title originalReleaseYear posterUrl externalIds { imdbId } } } } } } }"""
         post(query).obj("popularTitles")?.get("edges")?.jsonArray.orEmpty().mapNotNull { edge ->
             val node = edge.jsonObject.obj("node") ?: return@mapNotNull null
