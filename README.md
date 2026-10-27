@@ -16,6 +16,11 @@ Curated lists of movies from streaming sources, for Fire TV and Android TV.
   and download a backup. The page works while the app is open on the TV.
 - **On the TV:** Add film (search with the on-screen keyboard), and hold Select or
   press Menu on a box to move it, copy it to another shelf, or remove it.
+- **Search** (phone app and TV) finds films by title, or by actor or director (typing a
+  name offers matching people), with filters for genre, decade, IMDb rating, streaming
+  service and sort order. Filters work without any text, to browse.
+- **Overview** (phone app and TV) zooms out: every shelf as a tile of its first four
+  posters; pick one to jump to that shelf.
 
 Shelves are saved on the stick as `shelves.json` (the same format as the backup).
 On first run they start from `app/src/main/assets/collections.json`

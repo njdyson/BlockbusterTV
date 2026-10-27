@@ -34,12 +34,15 @@ fun TvTextField(
     initial: String = "",
     placeholder: String,
     autoFocus: Boolean = true,
+    /** When set, the screen controls the text (e.g. clears it); otherwise the field keeps its own. */
+    value: String? = null,
     onValueChange: (String) -> Unit = {},
     onSubmit: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(initial) }
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(value) { if (value != null && value != text) text = value }
     Box(
         Modifier
             .fillMaxWidth()

@@ -61,6 +61,17 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
     val homeListState = LazyListState()
     var focusedKey by mutableStateOf<String?>(null)
 
+    private val uiPrefs = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
+
+    /** Home zoomed out: every shelf as a tile of four posters. Remembered between launches. */
+    var overview by mutableStateOf(uiPrefs.getBoolean("overview", false))
+        private set
+
+    fun showOverview(show: Boolean) {
+        overview = show
+        uiPrefs.edit().putBoolean("overview", show).apply()
+    }
+
     init {
         account.deviceKey?.let { connect(it) }
         shelfStore.onSyncError = { e ->

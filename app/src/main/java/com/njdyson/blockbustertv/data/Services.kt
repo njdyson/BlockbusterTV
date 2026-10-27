@@ -19,9 +19,14 @@ data class StreamingService(
 private data class ServicesFile(val services: List<StreamingService>)
 
 /** The services from assets/services.json, in display order. */
-class Services(context: Context) {
-    val all: List<StreamingService> = context.assets.open("services.json").bufferedReader().use {
-        Json { ignoreUnknownKeys = true }.decodeFromString<ServicesFile>(it.readText()).services
+class Services(val all: List<StreamingService>) {
+    constructor(context: Context) : this(
+        context.assets.open("services.json").bufferedReader().use { parse(it.readText()) },
+    )
+
+    companion object {
+        fun parse(json: String): List<StreamingService> =
+            Json { ignoreUnknownKeys = true }.decodeFromString<ServicesFile>(json).services
     }
 
     fun byId(id: String): StreamingService? = all.firstOrNull { it.id == id }

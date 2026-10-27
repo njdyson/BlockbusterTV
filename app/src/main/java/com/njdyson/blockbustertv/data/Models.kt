@@ -50,3 +50,40 @@ data class CollectionEntry(val imdbId: String, val jwId: String, val title: Stri
 
 @Serializable
 data class FilmCollection(val name: String, val films: List<CollectionEntry>)
+
+/** Someone in films (actor, director…), from JustWatch's people search; id like "tp1725". */
+@Serializable
+data class Person(val id: String, val name: String)
+
+enum class SearchSort(val code: String, val label: String) {
+    POPULAR("POPULAR", "Popular"),
+    RATING("IMDB_SCORE", "Top rated"),
+    NEWEST("RELEASE_YEAR", "Newest"),
+    AZ("ALPHABETICAL", "A–Z"),
+}
+
+/** What to search for: any combination, from just a title to "80s sci-fi on Netflix". */
+data class SearchFilters(
+    val text: String = "",
+    val person: Person? = null,
+    val genre: String? = null,
+    val decade: Int? = null,
+    val minRating: Double? = null,
+    val service: String? = null,
+    val sort: SearchSort = SearchSort.POPULAR,
+) {
+    val isEmpty: Boolean
+        get() = text.isBlank() && person == null && genre == null && decade == null && minRating == null && service == null
+
+    companion object {
+        /** JustWatch genre codes and names. */
+        val GENRES = listOf(
+            "act" to "Action", "cmy" to "Comedy", "drm" to "Drama", "scf" to "Sci-Fi", "trl" to "Thriller",
+            "hrr" to "Horror", "rma" to "Romance", "fml" to "Family", "ani" to "Animation", "crm" to "Crime",
+            "fnt" to "Fantasy", "doc" to "Documentary", "war" to "War", "wsn" to "Western", "msc" to "Music",
+            "hst" to "History", "spt" to "Sport",
+        )
+        val DECADES = (1950..2020 step 10).toList()
+        val RATINGS = listOf(6.0, 7.0, 8.0)
+    }
+}

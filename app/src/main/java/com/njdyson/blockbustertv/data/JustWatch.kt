@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -33,11 +34,32 @@ class JustWatch(private val services: Services) {
     }
 
     /** Films matching a title search, most popular first. */
-    suspend fun search(text: String): List<ShelfFilm> = withContext(Dispatchers.IO) {
-        if (text.isBlank()) return@withContext emptyList()
-        val query = """{ popularTitles(country: GB, first: 12, filter: {objectTypes: [MOVIE], searchQuery: ${Json.encodeToString(String.serializer(), text.trim())}}) {
-            edges { node { id ... on Movie { content(country: GB, language: "en") { title originalReleaseYear posterUrl externalIds { imdbId } } } } } } }"""
-        post(query).obj("popularTitles")?.get("edges")?.jsonArray.orEmpty().mapNotNull { edge ->
+    suspend fun search(text: String): List<ShelfFilm> = search(SearchFilters(text = text))
+
+    /**
+     * Film search with optional filters that combine: title, a person's films, genre,
+     * decade, minimum IMDb rating, a streaming service, and sort order.
+     */
+    suspend fun search(f: SearchFilters): List<ShelfFilm> = withContext(Dispatchers.IO) {
+        if (f.isEmpty) return@withContext emptyList()
+        val filter = buildJsonObject {
+            put("objectTypes", JsonArray(listOf(JsonPrimitive("MOVIE"))))
+            f.text.trim().takeIf { it.isNotEmpty() }?.let { put("searchQuery", it) }
+            f.person?.let { put("personId", it.id) }
+            f.genre?.let { put("genres", JsonArray(listOf(JsonPrimitive(it)))) }
+            f.decade?.let { put("releaseYear", buildJsonObject { put("min", it); put("max", it + 9) }) }
+            f.minRating?.let { put("imdbScore", buildJsonObject { put("min", it) }) }
+            f.service?.let { id ->
+                SERVICE_PACKAGES[id]?.let { put("packages", JsonArray(listOf(JsonPrimitive(it)))) }
+                put("monetizationTypes", JsonArray(listOf("FLATRATE", "FREE", "ADS").map(::JsonPrimitive)))
+            }
+        }
+        val query = """query(${'$'}filter: TitleFilter!, ${'$'}sort: PopularTitlesSorting!) {
+            popularTitles(country: GB, first: 24, sortBy: ${'$'}sort, filter: ${'$'}filter) {
+              edges { node { id ... on Movie { content(country: GB, language: "en") {
+                title originalReleaseYear posterUrl externalIds { imdbId } } } } } } }"""
+        val variables = buildJsonObject { put("filter", filter); put("sort", f.sort.code) }
+        post(query, variables).obj("popularTitles")?.get("edges")?.jsonArray.orEmpty().mapNotNull { edge ->
             val node = edge.jsonObject.obj("node") ?: return@mapNotNull null
             val c = node.obj("content") ?: return@mapNotNull null
             ShelfFilm(
@@ -47,6 +69,18 @@ class JustWatch(private val services: Services) {
                 year = c["originalReleaseYear"]?.jsonPrimitive?.intOrNull,
                 poster = image(c.str("posterUrl"), "s166"),
             )
+        }
+    }
+
+    /** Actors, directors and others matching a name, most popular first. */
+    suspend fun people(text: String): List<Person> = withContext(Dispatchers.IO) {
+        if (text.trim().length < 3) return@withContext emptyList()
+        val query = """query(${'$'}q: String!) { popularPeople(country: GB, first: 6, filter: {searchQuery: ${'$'}q}) {
+            edges { node { id ... on Person { content(country: GB, language: "en") { fullName } } } } } }"""
+        post(query, buildJsonObject { put("q", text.trim()) }).obj("popularPeople")?.get("edges")?.jsonArray.orEmpty().mapNotNull { edge ->
+            val node = edge.jsonObject.obj("node") ?: return@mapNotNull null
+            val name = node.obj("content")?.str("fullName") ?: return@mapNotNull null
+            Person(node.str("id") ?: return@mapNotNull null, name)
         }
     }
 
@@ -99,14 +133,14 @@ class JustWatch(private val services: Services) {
             .map { group -> group.sortedWith(compareBy({ it.fireTvLink == null }, { it.priceValue ?: 0.0 })).first() }
             .sortedWith(compareBy({ it.kind }, { services.order(it.serviceId) }, { it.isChannel }))
 
-    private fun post(query: String): JsonObject {
+    private fun post(query: String, variables: JsonObject? = null): JsonObject {
         val conn = URL(API).openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true
         conn.connectTimeout = 15_000
         conn.readTimeout = 30_000
         conn.setRequestProperty("Content-Type", "application/json")
-        val body = buildJsonObject { put("query", query) }.toString()
+        val body = buildJsonObject { put("query", query); variables?.let { put("variables", it) } }.toString()
         conn.outputStream.use { it.write(body.toByteArray()) }
         val text = conn.inputStream.bufferedReader().use { it.readText() }
         val json = Json.parseToJsonElement(text).jsonObject
@@ -116,6 +150,12 @@ class JustWatch(private val services: Services) {
 
     companion object {
         private const val API = "https://apis.justwatch.com/graphql"
+
+        /** Our service IDs (services.json) to JustWatch package short names, for "streaming on" filters. */
+        private val SERVICE_PACKAGES = mapOf(
+            "netflix" to "nfx", "prime" to "amp", "disney" to "dnp", "appletv" to "atp", "plex" to "plx",
+            "iplayer" to "bbc", "itvx" to "itv", "channel4" to "al4", "now" to "ntv",
+        )
 
         private const val FIELDS = """id ... on Movie {
             content(country: GB, language: "en") {

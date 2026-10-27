@@ -1,5 +1,6 @@
 package com.njdyson.blockbustertv.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -65,6 +70,22 @@ fun HomeScreen(app: AppState, onOpen: (Film) -> Unit, onSearch: () -> Unit, onPh
     val focusedFilm = app.focusedKey?.substringAfter(':')?.let { app.films[it] }
     var menuFor by remember { mutableStateOf<Pair<Shelf, ShelfFilm>?>(null) }
     var copying by remember { mutableStateOf<ShelfFilm?>(null) }
+    var pendingShelf by remember { mutableStateOf<String?>(null) }
+
+    // Back in the overview returns to the shelves rather than leaving the app.
+    BackHandler(enabled = app.overview) { app.showOverview(false) }
+
+    // After picking a shelf in the overview, scroll to it so its first box can take focus.
+    LaunchedEffect(pendingShelf, app.overview) {
+        val id = pendingShelf ?: return@LaunchedEffect
+        if (app.overview) return@LaunchedEffect
+        val index = shelves.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            app.homeListState.scrollToItem(index)
+            app.shelfState(id).scrollToItem(0)
+        }
+        pendingShelf = null
+    }
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
         Backdrop(focusedFilm?.backdrop)
@@ -78,9 +99,19 @@ fun HomeScreen(app: AppState, onOpen: (Film) -> Unit, onSearch: () -> Unit, onPh
                 Spacer(Modifier.width(12.dp))
                 app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp) }
                 Spacer(Modifier.weight(1f))
+                OutlinedButton(onClick = { app.showOverview(!app.overview) }) { Text(if (app.overview) "Shelves" else "Overview") }
                 OutlinedButton(onClick = onSearch) { Text("Add film") }
                 OutlinedButton(onClick = onPhoneEdit) { Text("Edit on phone") }
                 OutlinedButton(onClick = onSettings) { Text("Settings") }
+            }
+            if (app.overview && shelves.isNotEmpty()) {
+                ShelfOverview(app, shelves, onPick = { shelf ->
+                    // Back to the shelves, on the first box of the chosen one.
+                    app.focusedKey = shelf.films.firstOrNull()?.let { "${shelf.id}:${it.jwId}" }
+                    pendingShelf = shelf.id
+                    app.showOverview(false)
+                })
+                return@Column
             }
             Preview(focusedFilm, Modifier.padding(horizontal = 48.dp).height(128.dp))
             if (shelves.isEmpty()) {
@@ -260,6 +291,71 @@ private fun VhsBox(
                         }
                         film.cheapestRent != null -> Text("Rent ${film.cheapestRent?.price.orEmpty()}", fontSize = 12.sp, color = TicketYellow)
                         else -> Text("Not streaming", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Zoomed out: every shelf as a tile showing its first four posters, five to a row.
+ * Selecting a tile goes back to the shelves, at that shelf.
+ */
+@Composable
+private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -> Unit) {
+    val currentShelf = app.focusedKey?.substringBefore(':')
+    Column(Modifier.padding(top = 16.dp)) {
+        ShelfSign("All shelves")
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(5),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            itemsIndexed(shelves, key = { _, shelf -> shelf.id }) { i, shelf ->
+                val focusRequester = remember { FocusRequester() }
+                if (shelf.id == currentShelf || (i == 0 && shelves.none { it.id == currentShelf })) {
+                    LaunchedEffect(Unit) { focusRequester.requestFocusWhenReady() }
+                }
+                Surface(
+                    onClick = { onPick(shelf) },
+                    modifier = Modifier.focusRequester(focusRequester),
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = ShelfGrey,
+                        contentColor = Color.White,
+                        focusedContainerColor = ShelfGrey,
+                        focusedContentColor = Color.White,
+                    ),
+                    border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TicketYellow))),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+                ) {
+                    Column(Modifier.padding(8.dp)) {
+                        val posters = shelf.films.take(4).map { app.films[it.jwId]?.poster ?: it.poster }
+                        for (row in 0..1) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                                for (col in 0..1) {
+                                    val url = posters.getOrNull(row * 2 + col)
+                                    Box(
+                                        Modifier
+                                            .weight(1f)
+                                            .aspectRatio(2f / 3f)
+                                            .background(Color.Black.copy(alpha = if (url == null) 0.25f else 1f), RoundedCornerShape(3.dp)),
+                                    ) {
+                                        if (url != null) {
+                                            AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(3.dp)))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Text(shelf.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            if (shelf.films.size == 1) "1 film" else "${shelf.films.size} films",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.6f),
+                        )
                     }
                 }
             }
