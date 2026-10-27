@@ -43,7 +43,9 @@ fun ChoiceDialog(title: String, choices: List<Pair<String, () -> Unit>>, onDismi
                 items(choices.size) { i ->
                     val (label, action) = choices[i]
                     Button(
-                        onClick = { onDismiss(); action() },
+                        // Action first: "New shelf…" switches the picker to naming mode, and
+                        // onDismiss then sees that and keeps the picker open.
+                        onClick = { action(); onDismiss() },
                         modifier = Modifier.fillMaxWidth().let { if (i == 0) it.focusRequester(first) else it },
                     ) { Text(label) }
                 }
@@ -69,16 +71,21 @@ fun ShelfPicker(shelves: List<Shelf>, onPick: (shelfId: String?, newName: String
     }
 }
 
+/** Text entry with an explicit confirm button: the Fire TV keyboard doesn't always offer Done. */
 @Composable
-fun TextEntryDialog(title: String, initial: String = "", onDone: (String) -> Unit, onDismiss: () -> Unit) {
+fun TextEntryDialog(title: String, initial: String = "", confirmLabel: String = "Create shelf", onDone: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    val submit = { if (text.isNotBlank()) onDone(text.trim()) }
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier.width(480.dp).background(ShelfGrey, RoundedCornerShape(12.dp)).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(title, color = TicketYellow, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            TvTextField(initial = initial, placeholder = "Type a name", onSubmit = { if (it.isNotBlank()) onDone(it.trim()) })
-            Text("Press Select to type, then Done on the keyboard.", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+            TvTextField(initial = initial, placeholder = "Type a name", onValueChange = { text = it }, onSubmit = { submit() })
+            Text("Press Select to type, then Back to close the keyboard.", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+            Button(onClick = submit, enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(confirmLabel) }
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
         }
     }
 }

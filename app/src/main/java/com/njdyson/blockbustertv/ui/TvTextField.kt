@@ -28,12 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 
-/** A single-line text box for the remote: Select opens the Fire TV keyboard, Done submits. */
+/** A single-line text box for the remote: Select opens the Fire TV keyboard; Done/Search submits if the keyboard has it. */
 @Composable
 fun TvTextField(
     initial: String = "",
     placeholder: String,
     autoFocus: Boolean = true,
+    onValueChange: (String) -> Unit = {},
     onSubmit: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(initial) }
@@ -49,7 +50,7 @@ fun TvTextField(
         if (text.isEmpty()) Text(placeholder, color = Color.Gray, fontSize = 18.sp)
         BasicTextField(
             value = text,
-            onValueChange = { text = it },
+            onValueChange = { text = it; onValueChange(it) },
             singleLine = true,
             textStyle = TextStyle(color = Color.Black, fontSize = 18.sp),
             cursorBrush = SolidColor(Color.Black),
