@@ -120,6 +120,19 @@
   .mosaic .blank { background: rgba(255,255,255,.05); }
   .tile .tname { font-weight: 800; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile .tcount { color: var(--muted); font-size: 12px; }
+  /* Sets (box sets) and shuffle */
+  .boxset { position: relative; }
+  .boxset img, .boxset .noposter { box-shadow: 4px -4px 0 #3a4170, 8px -8px 0 #262c55; margin: 8px 8px 0 0; width: 88px !important; height: 132px !important; }
+  .setcount { position: absolute; top: 12px; left: 4px; background: var(--yellow); color: var(--navy); font-size: 10px; font-weight: 800;
+              border-radius: 4px; padding: 1px 5px; }
+  .film .name.setname { font-weight: 800; }
+  .setpanel { background: rgba(0,0,0,.25); border-radius: 10px; padding: 10px; margin-top: 8px; }
+  .setpanel .shelf-name { font-size: 16px; }
+  .pick { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff;
+          background: rgba(0,0,0,.5); color: var(--navy); font-weight: 900; display: flex; align-items: center; justify-content: center; }
+  .pick.on { background: var(--yellow); border-color: var(--yellow); }
+  .selectbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button.chip.toggle.on { background: var(--good); color: #fff; }
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
@@ -308,7 +321,7 @@ function renderOverview() {
   const shelves = library.shelves;
   $("shelves").replaceChildren(shelves.length
     ? el("div", { className: "overview" }, ...shelves.map((shelf) => {
-        const four = shelf.films.slice(0, 4);
+        const four = shelfItems(shelf).slice(0, 4).map((it) => it.type === "film" ? it.film : (it.films[0] || { title: it.set.name }));
         const cells = [...four.map(poster), ...Array.from({ length: 4 - four.length }, () => el("div", { className: "blank" }))];
         return el("button", { className: "tile", onclick: () => setView("shelves", shelf.id) },
           el("div", { className: "mosaic" }, ...cells),
@@ -324,38 +337,163 @@ function render() {
   $("viewOverview").classList.toggle("on", view === "overview");
   if (view === "overview") return renderOverview();
   const shelves = library.shelves;
-  $("shelves").replaceChildren(...(shelves.length ? shelves.map((shelf, i) => {
-    const head = el("div", {},
-      el("div", { className: "shelf-name", textContent: shelf.name }),
-      el("div", { className: "shelf-tools" },
-        el("button", { className: "ghost small", textContent: "↑", title: "Move up", disabled: i === 0,
-          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: -1 }) }),
-        el("button", { className: "ghost small", textContent: "↓", title: "Move down", disabled: i === shelves.length - 1,
-          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: 1 }) }),
-        el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
-          const name = prompt("Shelf name", shelf.name);
-          if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
-        } }),
-        el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
-          if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
-        } }),
+  $("shelves").replaceChildren(...(shelves.length ? shelves.map((shelf, i) => renderShelf(shelf, i, shelves.length))
+    : [el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." })]));
+}
+
+// --- Shelves, sets and shuffle ---------------------------------------------------
+
+/**
+ * What a shelf shows, in order: films, with each set's films folded into one item at the
+ * position of its first member. A set keeps its own order (Rocky 1 to 5).
+ */
+function shelfItems(shelf) {
+  const setOf = new Map();
+  for (const set of shelf.sets || []) for (const id of set.films) setOf.set(id, set);
+  const byId = new Map(shelf.films.map((f) => [f.jwId, f]));
+  const seen = new Set();
+  const items = [];
+  for (const film of shelf.films) {
+    const set = setOf.get(film.jwId);
+    if (!set) items.push({ type: "film", film, key: film.jwId });
+    else if (!seen.has(set.id)) {
+      seen.add(set.id);
+      items.push({ type: "set", set, films: set.films.map((id) => byId.get(id)).filter(Boolean), key: "set:" + set.id });
+    }
+  }
+  return items;
+}
+
+/** Moves a film or a whole set left or right among the shelf's items. */
+function moveItem(shelf, index, delta) {
+  const items = shelfItems(shelf);
+  const target = index + delta;
+  if (target < 0 || target >= items.length) return;
+  items.splice(target, 0, items.splice(index, 1)[0]);
+  const order = items.flatMap((it) => it.type === "film" ? [it.film.jwId] : it.films.map((f) => f.jwId));
+  op({ op: "reorderFilms", shelf: shelf.id, order });
+}
+
+let selecting = null; // { shelf: id, chosen: Set of jwIds } while choosing films for a set
+let openSet = null;   // id of the set whose panel is open
+
+function renderShelf(shelf, i, count) {
+  const items = shelfItems(shelf);
+  const picking = selecting && selecting.shelf === shelf.id;
+  const head = el("div", {},
+    el("div", { className: "shelf-name", textContent: shelf.name }),
+    el("div", { className: "shelf-tools" },
+      el("button", { className: "ghost small", textContent: "↑", title: "Move up", disabled: i === 0,
+        onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: -1 }) }),
+      el("button", { className: "ghost small", textContent: "↓", title: "Move down", disabled: i === count - 1,
+        onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: 1 }) }),
+      el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+        const name = prompt("Shelf name", shelf.name);
+        if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
+      } }),
+      el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
+        if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
+      } }),
+    ),
+    el("div", { className: "shelf-tools" },
+      el("button", {
+        className: "chip toggle" + (shelf.shuffle ? " on" : ""),
+        textContent: shelf.shuffle ? "🔀 Shuffled on TV" : "🔀 Shuffle on TV",
+        onclick: () => op({ op: "setShuffle", shelf: shelf.id, shuffle: !shelf.shuffle }),
+      }),
+      el("button", { className: "chip", textContent: picking ? "Cancel" : "Make a set", disabled: shelf.films.length < 1,
+        onclick: () => { selecting = picking ? null : { shelf: shelf.id, chosen: new Set() }; render(); } }),
+    ));
+
+  const tile = (item, j) => {
+    if (item.type === "set") {
+      const set = item.set;
+      return el("div", { className: "film" },
+        el("button", { className: "result boxset", onclick: () => { openSet = openSet === set.id ? null : set.id; render(); } },
+          poster(item.films[0] || { title: set.name }),
+          el("span", { className: "setcount", textContent: `${item.films.length} FILMS` })),
+        el("div", { className: "name setname", textContent: set.name }),
+        el("div", { className: "tools" },
+          el("button", { className: "ghost", textContent: "◀", disabled: j === 0 || shelf.shuffle, onclick: () => moveItem(shelf, j, -1) }),
+          el("button", { className: "ghost", textContent: "⋯", title: "Open set", onclick: () => { openSet = openSet === set.id ? null : set.id; render(); } }),
+          el("button", { className: "ghost", textContent: "▶", disabled: j === items.length - 1 || shelf.shuffle, onclick: () => moveItem(shelf, j, 1) }),
+        ));
+    }
+    const f = item.film;
+    const chosen = picking && selecting.chosen.has(f.jwId);
+    return el("div", { className: "film" },
+      picking
+        ? el("button", { className: "result", style: "position:relative", onclick: () => {
+            selecting.chosen.has(f.jwId) ? selecting.chosen.delete(f.jwId) : selecting.chosen.add(f.jwId);
+            render();
+          } }, poster(f), el("span", { className: "pick" + (chosen ? " on" : ""), textContent: chosen ? "✓" : "" }))
+        : poster(f),
+      ...(library.owned.includes(f.jwId) ? [el("span", { className: "owned", textContent: "OWNED" })] : []),
+      el("div", { className: "name", textContent: f.title }),
+      picking ? "" : el("div", { className: "tools" },
+        el("button", { className: "ghost", textContent: "◀", disabled: j === 0 || shelf.shuffle, onclick: () => moveItem(shelf, j, -1) }),
+        el("button", { className: "ghost", textContent: "✕", title: "Remove",
+          onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
+        el("button", { className: "ghost", textContent: "▶", disabled: j === items.length - 1 || shelf.shuffle, onclick: () => moveItem(shelf, j, 1) }),
       ));
-    const films = shelf.films.length
-      ? el("div", { className: "films" }, ...shelf.films.map((f, j) => el("div", { className: "film" },
-          poster(f),
-          ...(library.owned.includes(f.jwId) ? [el("span", { className: "owned", textContent: "OWNED" })] : []),
-          el("div", { className: "name", textContent: f.title }),
-          el("div", { className: "tools" },
-            el("button", { className: "ghost", textContent: "◀", disabled: j === 0,
-              onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: -1 }) }),
-            el("button", { className: "ghost", textContent: "✕", title: "Remove",
-              onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
-            el("button", { className: "ghost", textContent: "▶", disabled: j === shelf.films.length - 1,
-              onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: 1 }) }),
-          ))))
-      : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." });
-    return el("div", { className: "shelf", id: "shelf-" + shelf.id }, head, films);
-  }) : [el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." })]));
+  };
+
+  const parts = [head];
+  parts.push(items.length
+    ? el("div", { className: "films" }, ...items.map(tile))
+    : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." }));
+  if (shelf.shuffle && items.length) parts.push(el("div", { className: "muted", textContent: "The TV shows this shelf in a new random order each time. Sets stay in order." }));
+
+  // Choosing films for a set.
+  if (picking) {
+    const n = selecting.chosen.size;
+    parts.push(el("div", { className: "selectbar" },
+      el("div", { className: "muted", style: "width:100%", textContent: n ? `${n} chosen` : "Tap the films to put in a set." }),
+      el("button", { className: "small", textContent: "Make a new set", disabled: n < 1, onclick: async () => {
+        const name = prompt("Name the set", "Box set");
+        if (!name || !name.trim()) return;
+        const films = shelf.films.map((f) => f.jwId).filter((id) => selecting.chosen.has(id));
+        selecting = null;
+        await op({ op: "createSet", shelf: shelf.id, name, films });
+      } }),
+      ...(shelf.sets || []).map((set) => el("button", { className: "ghost small", textContent: `Add to ${set.name}`, disabled: n < 1, onclick: async () => {
+        const ids = shelf.films.map((f) => f.jwId).filter((id) => selecting.chosen.has(id));
+        selecting = null;
+        for (const jwId of ids) await op({ op: "addToSet", shelf: shelf.id, set: set.id, jwId });
+      } }))));
+  }
+
+  // An open set: its films in order, to rearrange, take out or remove.
+  const open = items.find((it) => it.type === "set" && it.set.id === openSet);
+  if (open) {
+    const set = open.set;
+    const order = open.films.map((f) => f.jwId);
+    const reorder = (k, d) => {
+      const next = [...order];
+      next.splice(k + d, 0, next.splice(k, 1)[0]);
+      op({ op: "reorderSet", shelf: shelf.id, set: set.id, order: next });
+    };
+    parts.push(el("div", { className: "setpanel" },
+      el("div", { className: "shelf-name", textContent: `${set.name} · ${open.films.length} films` }),
+      el("div", { className: "shelf-tools" },
+        el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+          const name = prompt("Set name", set.name);
+          if (name && name.trim()) op({ op: "renameSet", shelf: shelf.id, set: set.id, name });
+        } }),
+        el("button", { className: "ghost small", textContent: "Ungroup", onclick: () => { openSet = null; op({ op: "ungroupSet", shelf: shelf.id, set: set.id }); } }),
+        el("button", { className: "ghost small", textContent: "Close", onclick: () => { openSet = null; render(); } })),
+      el("div", { className: "films" }, ...open.films.map((f, k) => el("div", { className: "film" },
+        poster(f),
+        el("div", { className: "name", textContent: f.title }),
+        el("div", { className: "tools" },
+          el("button", { className: "ghost", textContent: "◀", disabled: k === 0, onclick: () => reorder(k, -1) }),
+          el("button", { className: "ghost", textContent: "⤴", title: "Take out of the set", onclick: () => op({ op: "removeFromSet", shelf: shelf.id, jwId: f.jwId }) }),
+          el("button", { className: "ghost", textContent: "▶", disabled: k === open.films.length - 1, onclick: () => reorder(k, 1) }),
+        )))),
+      el("div", { className: "muted", textContent: "◀ ▶ change the order the set plays in. ⤴ takes a film out of the set (it stays on the shelf)." }),
+    ));
+  }
+  return el("div", { className: "shelf", id: "shelf-" + shelf.id }, ...parts);
 }
 
 // --- Search and add ---------------------------------------------------------

@@ -50,7 +50,7 @@ function load(userId) {
   const record = findLibrary(userId)
   if (!record) return emptyLibrary()
   const data = JSON.parse(record.getString("data") || "null") || emptyLibrary()
-  data.shelves = data.shelves || []
+  data.shelves = (data.shelves || []).map((shelf) => ({ ...shelf, sets: shelf.sets || [], shuffle: !!shelf.shuffle }))
   data.owned = data.owned || []
   return data
 }
@@ -76,11 +76,49 @@ function move(list, index, delta) {
   list.splice(target, 0, list.splice(index, 1)[0])
 }
 
+/** Sets only reference films on their shelf; drop missing ones and empty sets. */
+function cleanSets(shelf) {
+  const onShelf = new Set(shelf.films.map((f) => f.jwId))
+  shelf.sets = (shelf.sets || [])
+    .map((set) => ({ ...set, films: set.films.filter((id) => onShelf.has(id)) }))
+    .filter((set) => set.films.length > 0)
+}
+
+/** A film belongs to at most one set on a shelf. */
+function takeOutOfSets(shelf, jwId) {
+  for (const set of shelf.sets) set.films = set.films.filter((id) => id !== jwId)
+}
+
+/**
+ * Keeps a set's films next to each other in the shelf's order, at the position of its
+ * first member, so the set shows up as one box in a sensible place.
+ */
+function gather(shelf, set) {
+  const members = new Set(set.films)
+  const first = shelf.films.findIndex((f) => members.has(f.jwId))
+  if (first < 0) return
+  const others = shelf.films.filter((f) => !members.has(f.jwId))
+  const before = shelf.films.slice(0, first).filter((f) => !members.has(f.jwId)).length
+  const grouped = set.films.map((id) => shelf.films.find((f) => f.jwId === id)).filter(Boolean)
+  shelf.films = [...others.slice(0, before), ...grouped, ...others.slice(before)]
+}
+
+function newId(wanted, taken) {
+  wanted = String(wanted || "")
+  return /^[a-z0-9]{8}$/.test(wanted) && !taken.some((x) => x.id === wanted) ? wanted : randomId()
+}
+
 /** The edits both apps send, mirroring the TV's ShelfStore. */
 function applyOp(data, op) {
   const shelf = () => {
     const found = data.shelves.find((s) => s.id === op.shelf)
     if (!found) throw new BadRequestError("That shelf no longer exists.")
+    found.sets = found.sets || []
+    return found
+  }
+  const set = (s) => {
+    const found = s.sets.find((x) => x.id === op.set)
+    if (!found) throw new BadRequestError("That set no longer exists.")
     return found
   }
   switch (op.op) {
@@ -88,7 +126,7 @@ function applyOp(data, op) {
       // The TV picks the ID so its own copy matches straight away; otherwise make one.
       const wanted = String(op.id || "")
       const id = /^[a-z0-9]{8}$/.test(wanted) && !data.shelves.some((s) => s.id === wanted) ? wanted : randomId()
-      data.shelves.push({ id, name: String(op.name || "").trim() || "New shelf", films: [] })
+      data.shelves.push({ id, name: String(op.name || "").trim() || "New shelf", films: [], sets: [], shuffle: false })
       return id
     }
     case "renameShelf": {
@@ -114,6 +152,71 @@ function applyOp(data, op) {
     case "removeFilm": {
       const s = shelf()
       s.films = s.films.filter((x) => x.jwId !== op.jwId)
+      cleanSets(s)
+      return null
+    }
+    // Replaces the shelf's order with a rearrangement of the same films.
+    case "reorderFilms": {
+      const s = shelf()
+      const order = Array.isArray(op.order) ? op.order : []
+      const current = s.films.map((f) => f.jwId)
+      if (order.length !== current.length || [...order].sort().join() !== [...current].sort().join()) {
+        throw new BadRequestError("The shelf changed; reload and try again.")
+      }
+      s.films = order.map((id) => s.films.find((f) => f.jwId === id))
+      return null
+    }
+    case "setShuffle":
+      shelf().shuffle = !!op.shuffle
+      return null
+    // Sets: films on a shelf grouped into one box, e.g. Rocky 1–5. A set keeps its own order.
+    case "createSet": {
+      const s = shelf()
+      const onShelf = new Set(s.films.map((f) => f.jwId))
+      const films = (Array.isArray(op.films) ? op.films : []).filter((id, i, all) => onShelf.has(id) && all.indexOf(id) === i)
+      if (!films.length) throw new BadRequestError("Choose some films for the set.")
+      for (const id of films) takeOutOfSets(s, id)
+      const id = newId(op.id, s.sets)
+      const created = { id, name: String(op.name || "").trim() || "Box set", films }
+      s.sets.push(created)
+      cleanSets(s)
+      gather(s, created)
+      return id
+    }
+    case "renameSet": {
+      const name = String(op.name || "").trim()
+      if (name) set(shelf()).name = name
+      return null
+    }
+    case "ungroupSet": {
+      const s = shelf()
+      s.sets = s.sets.filter((x) => x.id !== op.set)
+      return null
+    }
+    case "addToSet": {
+      const s = shelf()
+      const target = set(s)
+      if (!s.films.some((f) => f.jwId === op.jwId)) throw new BadRequestError("That film isn't on this shelf.")
+      takeOutOfSets(s, op.jwId)
+      target.films.push(op.jwId)
+      cleanSets(s)
+      gather(s, target)
+      return null
+    }
+    case "removeFromSet": {
+      const s = shelf()
+      takeOutOfSets(s, op.jwId)
+      cleanSets(s)
+      return null
+    }
+    // A set's own order: a rearrangement of its films.
+    case "reorderSet": {
+      const s = shelf()
+      const target = set(s)
+      const order = Array.isArray(op.order) ? op.order : []
+      if ([...order].sort().join() !== [...target.films].sort().join()) throw new BadRequestError("The set changed; reload and try again.")
+      target.films = order
+      gather(s, target)
       return null
     }
     case "moveFilm": {

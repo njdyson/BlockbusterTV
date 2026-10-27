@@ -69,6 +69,37 @@ try:
     call("POST", "/api/bbtv/op", {"op": "removeFilm", "shelf": "nope", "jwId": "tm10"}, token=token, expect=400)
     call("POST", "/api/bbtv/op", {"op": "explode"}, token=token, expect=400)
 
+    # Sets and shuffle.
+    lib = call("POST", "/api/bbtv/op", {"op": "addShelf", "name": "Rocky", "id": "rocky000"}, token=token)
+    for n in range(1, 6):
+        call("POST", "/api/bbtv/op", {"op": "addFilm", "shelf": "rocky000", "film": {"jwId": f"r{n}", "title": f"Rocky {n}"}}, token=token)
+    call("POST", "/api/bbtv/op", {"op": "addFilm", "shelf": "rocky000", "film": {"jwId": "other", "title": "Creed"}}, token=token)
+    call("POST", "/api/bbtv/op", {"op": "reorderFilms", "shelf": "rocky000", "order": ["r1", "other", "r2", "r3", "r4", "r5"]}, token=token)
+    lib = call("POST", "/api/bbtv/op", {"op": "createSet", "shelf": "rocky000", "name": "Rocky 1-4", "films": ["r1", "r2", "r3", "r4", "nope"]}, token=token)
+    rocky_set = lib["created"]
+    shelf_of = lambda lib: next(s for s in lib["shelves"] if s["id"] == "rocky000")
+    sh = shelf_of(lib)
+    assert sh["sets"] == [{"id": rocky_set, "name": "Rocky 1-4", "films": ["r1", "r2", "r3", "r4"]}], sh["sets"]
+    assert [f["jwId"] for f in sh["films"]] == ["r1", "r2", "r3", "r4", "other", "r5"], sh["films"]  # gathered at r1's place
+    lib = call("POST", "/api/bbtv/op", {"op": "addToSet", "shelf": "rocky000", "set": rocky_set, "jwId": "r5"}, token=token)
+    assert shelf_of(lib)["sets"][0]["films"] == ["r1", "r2", "r3", "r4", "r5"]
+    assert [f["jwId"] for f in shelf_of(lib)["films"]] == ["r1", "r2", "r3", "r4", "r5", "other"]
+    call("POST", "/api/bbtv/op", {"op": "renameSet", "shelf": "rocky000", "set": rocky_set, "name": "Rocky 1-5"}, token=token)
+    lib = call("POST", "/api/bbtv/op", {"op": "reorderSet", "shelf": "rocky000", "set": rocky_set, "order": ["r5", "r4", "r3", "r2", "r1"]}, token=token)
+    assert shelf_of(lib)["sets"][0]["films"] == ["r5", "r4", "r3", "r2", "r1"] and shelf_of(lib)["sets"][0]["name"] == "Rocky 1-5"
+    call("POST", "/api/bbtv/op", {"op": "reorderSet", "shelf": "rocky000", "set": rocky_set, "order": ["r1"]}, token=token, expect=400)
+    call("POST", "/api/bbtv/op", {"op": "reorderFilms", "shelf": "rocky000", "order": ["r1", "r2"]}, token=token, expect=400)
+    lib = call("POST", "/api/bbtv/op", {"op": "removeFromSet", "shelf": "rocky000", "jwId": "r5"}, token=token)
+    assert shelf_of(lib)["sets"][0]["films"] == ["r4", "r3", "r2", "r1"]
+    lib = call("POST", "/api/bbtv/op", {"op": "removeFilm", "shelf": "rocky000", "jwId": "r4"}, token=token)
+    assert shelf_of(lib)["sets"][0]["films"] == ["r3", "r2", "r1"]  # removing a film updates its set
+    lib = call("POST", "/api/bbtv/op", {"op": "setShuffle", "shelf": "rocky000", "shuffle": True}, token=token)
+    assert shelf_of(lib)["shuffle"] is True
+    lib = call("POST", "/api/bbtv/op", {"op": "ungroupSet", "shelf": "rocky000", "set": rocky_set}, token=token)
+    assert shelf_of(lib)["sets"] == [] and len(shelf_of(lib)["films"]) == 5
+    call("POST", "/api/bbtv/op", {"op": "deleteShelf", "shelf": "rocky000"}, token=token)
+    print("sets and shuffle ok")
+
     # Import only replaces an existing library when asked.
     other = {"version": 1, "shelves": [{"id": "x1", "name": "Imported", "films": []}], "owned": []}
     assert call("POST", "/api/bbtv/import", {"data": other}, token=token)["shelves"][0]["name"] == "Saturday Night"
