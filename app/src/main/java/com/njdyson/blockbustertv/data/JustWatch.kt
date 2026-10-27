@@ -2,6 +2,7 @@ package com.njdyson.blockbustertv.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -29,6 +30,24 @@ class JustWatch(private val services: Services) {
         val query = jwIds.mapIndexed { i, id -> "f$i: node(id: \"$id\") { $FIELDS }" }.joinToString(" ", "{ ", " }")
         val data = post(query)
         jwIds.indices.mapNotNull { i -> (data["f$i"] as? JsonObject)?.let(::parseFilm) }
+    }
+
+    /** Films matching a title search, most popular first. */
+    suspend fun search(text: String): List<ShelfFilm> = withContext(Dispatchers.IO) {
+        if (text.isBlank()) return@withContext emptyList()
+        val query = """{ popularTitles(country: GB, first: 24, filter: {objectTypes: [MOVIE], searchQuery: ${Json.encodeToString(String.serializer(), text.trim())}}) {
+            edges { node { id ... on Movie { content(country: GB, language: "en") { title originalReleaseYear posterUrl externalIds { imdbId } } } } } } }"""
+        post(query).obj("popularTitles")?.get("edges")?.jsonArray.orEmpty().mapNotNull { edge ->
+            val node = edge.jsonObject.obj("node") ?: return@mapNotNull null
+            val c = node.obj("content") ?: return@mapNotNull null
+            ShelfFilm(
+                jwId = node.str("id") ?: return@mapNotNull null,
+                imdbId = c.obj("externalIds")?.str("imdbId").orEmpty(),
+                title = c.str("title").orEmpty(),
+                year = c["originalReleaseYear"]?.jsonPrimitive?.intOrNull,
+                poster = image(c.str("posterUrl"), "s166"),
+            )
+        }
     }
 
     private fun parseFilm(node: JsonObject): Film {

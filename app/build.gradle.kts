@@ -71,5 +71,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.zxing.core)
     implementation(libs.coil.compose)
+    implementation(libs.nanohttpd)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

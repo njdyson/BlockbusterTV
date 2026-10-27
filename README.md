@@ -1,7 +1,7 @@
 # BlockbusterTV
 Curated lists of movies from streaming sources, for Fire TV and Android TV.
 
-## Current state: Milestone 2 prototype
+## Current state: Milestone 3, editable shelves
 - **Home:** shelves of films as rental boxes, with the IMDb rating as a price
   sticker and icons for the services that include each film. The focused film's
   backdrop, details and synopsis show at the top.
@@ -9,7 +9,16 @@ Curated lists of movies from streaming sources, for Fire TV and Android TV.
   and a button per way to watch (included, or rent/buy in Prime Video and Apple TV).
 - **Settings:** check for updates, refresh availability, and Link Lab.
 
-Shelves are hard-coded in `app/src/main/assets/collections.json`
+**Editing shelves:**
+- **On your phone:** Home > Edit on phone shows a QR code. The stick serves a small
+  editing page (`app/src/main/assets/web/index.html`) on the home network, port 8642,
+  protected by a secret key in the QR code. Search, add, remove, reorder, rename,
+  and download a backup. The page works while the app is open on the TV.
+- **On the TV:** Add film (search with the on-screen keyboard), and hold Select or
+  press Menu on a box to move it, copy it to another shelf, or remove it.
+
+Shelves are saved on the stick as `shelves.json` (the same format as the backup).
+On first run they start from `app/src/main/assets/collections.json`
 (regenerate with `python3 tools/build_collections.py`). Film data, UK availability,
 IMDb ratings and Fire TV deep links come from JustWatch's unofficial GraphQL API,
 cached on the device for a day.

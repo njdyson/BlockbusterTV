@@ -8,39 +8,42 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * The shelves (assets/collections.json, hard-coded for this prototype) and a local cache of
- * their films' metadata, so the app opens instantly and refreshes availability once a day.
+ * A local cache of film metadata and availability, so the app opens instantly and
+ * refreshes from JustWatch once a day (or straight away for newly added films).
  */
 class FilmRepository(context: Context, private val justWatch: JustWatch) {
     private val json = Json { ignoreUnknownKeys = true }
     private val cacheFile = File(context.filesDir, "films.json")
-
-    val collections: List<FilmCollection> = context.assets.open("collections.json").bufferedReader().use {
-        json.decodeFromString<CollectionsFile>(it.readText()).collections
-    }
-
-    @Serializable
-    private data class CollectionsFile(val collections: List<FilmCollection>)
 
     @Serializable
     private data class Cache(val fetchedAt: Long, val films: Map<String, Film>)
 
     suspend fun cached(): Map<String, Film> = withContext(Dispatchers.IO) { readCache()?.films.orEmpty() }
 
-    /** True if the cache is missing films or older than a day. */
     suspend fun isStale(): Boolean = withContext(Dispatchers.IO) {
         val cache = readCache() ?: return@withContext true
-        val ids = collections.flatMap { c -> c.films.map { it.jwId } }.toSet()
-        System.currentTimeMillis() - cache.fetchedAt > REFRESH_MS || !cache.films.keys.containsAll(ids)
+        System.currentTimeMillis() - cache.fetchedAt > REFRESH_MS
     }
 
-    suspend fun refresh(): Map<String, Film> {
-        val ids = collections.flatMap { c -> c.films.map { it.jwId } }.distinct()
-        val films = justWatch.films(ids).associateBy { it.jwId }
-        withContext(Dispatchers.IO) {
-            cacheFile.writeText(json.encodeToString(Cache.serializer(), Cache(System.currentTimeMillis(), films)))
-        }
+    /** Re-fetches every film in [ids]. */
+    suspend fun refresh(ids: Collection<String>): Map<String, Film> {
+        val films = justWatch.films(ids.distinct()).associateBy { it.jwId }
+        write(Cache(System.currentTimeMillis(), films))
         return films
+    }
+
+    /** Fetches only films missing from the cache, keeping the cache's refresh time. */
+    suspend fun addMissing(ids: Collection<String>): Map<String, Film> {
+        val cache = withContext(Dispatchers.IO) { readCache() } ?: Cache(System.currentTimeMillis(), emptyMap())
+        val missing = ids.filterNot { it in cache.films }.distinct()
+        if (missing.isEmpty()) return cache.films
+        val merged = cache.films + justWatch.films(missing).associateBy { it.jwId }
+        write(cache.copy(films = merged))
+        return merged
+    }
+
+    private suspend fun write(cache: Cache) = withContext(Dispatchers.IO) {
+        cacheFile.writeText(json.encodeToString(Cache.serializer(), cache))
     }
 
     private fun readCache(): Cache? =
