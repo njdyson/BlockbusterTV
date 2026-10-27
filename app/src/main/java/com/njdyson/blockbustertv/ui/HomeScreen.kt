@@ -52,7 +52,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -399,15 +398,7 @@ internal fun VhsBox(
                 } else {
                     Modifier.fillMaxSize()
                 }
-                AsyncImage(
-                    model = film?.poster ?: fallbackPoster,
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = cover.background(ShelfGrey, RoundedCornerShape(3.dp)),
-                )
-                if (film?.poster == null && fallbackPoster == null) {
-                    Text(title, fontSize = 14.sp, modifier = Modifier.align(Alignment.Center).padding(8.dp))
-                }
+                Poster(film?.poster ?: fallbackPoster, title, cover.clip(RoundedCornerShape(3.dp)))
                 if (setCount != null) {
                     Text(
                         "$setCount FILMS",
@@ -478,21 +469,19 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
                 ) {
                     Column(Modifier.padding(6.dp)) {
-                        val posters = shelf.displayItems(app.shuffleSeed, { f -> app.films[f.jwId]?.year ?: f.year }).take(4).map { item ->
-                            item.cover?.let { app.films[it.jwId]?.poster ?: it.poster }
-                        }
+                        val covers = shelf.displayItems(app.shuffleSeed, { f -> app.films[f.jwId]?.year ?: f.year }).take(4).map { it.cover }
                         for (row in 0..1) {
                             Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(bottom = 3.dp)) {
                                 for (col in 0..1) {
-                                    val url = posters.getOrNull(row * 2 + col)
+                                    val cover = covers.getOrNull(row * 2 + col)
                                     Box(
                                         Modifier
                                             .weight(1f)
                                             .aspectRatio(2f / 3f)
-                                            .background(Color.Black.copy(alpha = if (url == null) 0.25f else 1f), RoundedCornerShape(3.dp)),
+                                            .background(Color.Black.copy(alpha = if (cover == null) 0.25f else 1f), RoundedCornerShape(3.dp)),
                                     ) {
-                                        if (url != null) {
-                                            AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(3.dp)))
+                                        if (cover != null) {
+                                            Poster(app.films[cover.jwId]?.poster ?: cover.poster, cover.title, Modifier.fillMaxSize().clip(RoundedCornerShape(3.dp)))
                                         }
                                     }
                                 }
