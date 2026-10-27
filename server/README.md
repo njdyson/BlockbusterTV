@@ -14,28 +14,43 @@ phone app, and lets TVs link to an account and sync.
 
 ## Setting it up on the Plesk server
 
-You need to run commands as root, either over SSH (`ssh root@185.230.218.116`) or in
-Plesk's own terminal (**Tools & Settings > SSH Terminal**, if that extension is installed).
+Plesk Git keeps the code up to date; PocketBase runs as a background service straight
+from the folder Plesk deploys to. After the one-time setup in step 4, each deploy updates
+the server by itself: changed API code reloads within seconds and the phone app files
+are served as they are. The database lives in a separate folder that deploys never touch.
 
-1. **Subdomain:** in Plesk, **Websites & Domains > Add Subdomain**, name `blockbuster`
-   under `psybob.uk`. Make sure its DNS record exists (Plesk adds it if it manages the
-   DNS for psybob.uk; otherwise add an A record for `blockbuster` pointing at
-   185.230.218.116 wherever the DNS is hosted).
+1. **Subdomain:** **Websites & Domains > Add Subdomain**, `blockbuster` under `psybob.uk`,
+   default document root. Make sure DNS has a record for it (automatic if Plesk runs the
+   DNS for psybob.uk; otherwise add an A record `blockbuster` → 185.230.218.116).
 2. **HTTPS:** on the subdomain, **SSL/TLS Certificates > Let's Encrypt**, issue a
-   certificate, and turn on the redirect from HTTP to HTTPS.
-3. **Install PocketBase and the app** (as root):
+   certificate, and turn on the HTTP to HTTPS redirect.
+3. **Git:** on the subdomain, **Git > Add Repository**:
+   - Remote Git hosting, URL `https://github.com/njdyson/BlockbusterTV.git` (public, no key needed)
+   - Deployment mode: **Automatic**
+   - Deployment path: **`blockbuster-app`** (a folder next to the website, not inside it)
+   - Then choose the branch **`link-lab`** in the repository's settings.
+
+   To deploy on every push, copy the **Webhook URL** Plesk shows into GitHub: the repo's
+   **Settings > Webhooks > Add webhook** (content type `application/json`). Otherwise
+   press **Pull Updates** in Plesk when there's something new.
+4. **Start the server** (once, as root: over SSH, `ssh root@185.230.218.116`, or in Plesk's
+   **Tools & Settings > SSH Terminal** if that extension is installed):
    ```
-   curl -fsSL https://raw.githubusercontent.com/njdyson/BlockbusterTV/link-lab/server/deploy/install.sh -o install.sh
-   sudo BRANCH=link-lab bash install.sh
+   sudo APP_DIR=/var/www/vhosts/psybob.uk/blockbuster-app bash /var/www/vhosts/psybob.uk/blockbuster-app/server/deploy/install.sh
    ```
-   It asks for an admin email and password the first time. Re-run it later to update.
-   (Once the work is merged into `main`, drop `BRANCH=link-lab` and use `main` in the URL.)
-4. **Connect the subdomain to it:** on the subdomain, **Apache & nginx Settings**, paste
+   It downloads PocketBase, sets it up as a service that starts with the server, and asks
+   for an admin email and password. The database goes in
+   `/var/www/vhosts/psybob.uk/blockbuster-data`. (Running it again is safe; it's only needed
+   again if an update says so, e.g. for a new PocketBase version.)
+5. **Connect the subdomain to it:** on the subdomain, **Apache & nginx Settings**, paste
    `deploy/nginx-directives.conf` into **Additional nginx directives**, and save.
-5. **Check:** https://blockbuster.psybob.uk should show the sign-in page, and
+6. **Check:** https://blockbuster.psybob.uk shows the sign-in page, and
    https://blockbuster.psybob.uk/_/ the PocketBase dashboard.
-6. **Create your account:** in the dashboard, **Collections > users > New record**
-   (email and password). Do the same for friends. There is no public sign-up.
+7. **Create your account:** in the dashboard, **Collections > users > New record**
+   (email and password). Same for friends. There is no public sign-up.
+
+Without Plesk Git, run `install.sh` without `APP_DIR` (add `BRANCH=link-lab`): it
+fetches the code from GitHub itself into `/opt/blockbustertv`. Re-run it to update.
 
 Recommended in the dashboard (**Settings**):
 - **Application:** set the name to BlockbusterTV and the URL to https://blockbuster.psybob.uk.
