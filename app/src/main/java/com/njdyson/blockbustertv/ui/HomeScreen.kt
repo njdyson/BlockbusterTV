@@ -212,7 +212,7 @@ fun HomeScreen(
                 item {
                     Text(
                         (if (app.freeOnly) "Showing films included on your services or owned on YouTube · " else "") +
-                            "Availability and ratings from JustWatch · Shelves are shuffled each time · Hold Select on a box to make sets or remove it",
+                            "Availability and ratings from JustWatch · Hold Select on a box to make sets or remove it",
                         color = Color.White.copy(alpha = 0.4f),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 48.dp),
