@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -18,6 +20,12 @@ android {
         val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionCode = build
         versionName = "0.1.$build"
+        // TMDB key for trailers: env var (GitHub Actions secret) or secrets.properties (not in git).
+        val secrets = Properties().apply {
+            rootProject.file("secrets.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        val tmdbKey = System.getenv("TMDB_API_KEY") ?: secrets.getProperty("TMDB_API_KEY", "")
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
         buildConfigField("String", "GIT_SHA", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
     }
 

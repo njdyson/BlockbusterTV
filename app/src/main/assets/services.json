@@ -1,0 +1,14 @@
+{
+  "comment": "Streaming services the app knows how to open on Fire TV. 'match' lists JustWatch package technicalName prefixes. 'launch' is 'deeplink' (JustWatch's Fire TV link opens the film; confirmed in Link Lab) or 'home' (no working title link: open the app and show the film's title). Edit and rebuild to change behaviour.",
+  "services": [
+    {"id": "netflix", "name": "Netflix", "match": ["netflix"], "package": "com.netflix.ninja", "launch": "deeplink"},
+    {"id": "prime", "name": "Prime Video", "match": ["amazon"], "package": "com.amazon.firebat", "launch": "deeplink"},
+    {"id": "disney", "name": "Disney+", "match": ["disneyplus"], "package": "com.disney.disneyplus", "launch": "deeplink"},
+    {"id": "appletv", "name": "Apple TV", "match": ["appletv", "itunes"], "package": "com.apple.atve.amazon.appletv", "launch": "deeplink"},
+    {"id": "plex", "name": "Plex", "match": ["plex"], "package": "com.plexapp.android", "launch": "deeplink"},
+    {"id": "iplayer", "name": "BBC iPlayer", "match": ["bbc"], "package": "uk.co.bbc.iplayer", "launch": "home"},
+    {"id": "itvx", "name": "ITVX", "match": ["itv"], "package": "air.ITVMobilePlayer", "launch": "home"},
+    {"id": "channel4", "name": "Channel 4", "match": ["all4"], "package": "com.channel4.ondemand", "launch": "home"},
+    {"id": "now", "name": "NOW", "match": ["nowtv"], "package": "com.bskyb.nowtv.beta", "launch": "home"}
+  ]
+}

@@ -27,6 +27,9 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleDebug
+        env:
+          # Optional: enables trailers. Add it under Settings > Secrets and variables > Actions.
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: cp app/build/outputs/apk/debug/app-debug.apk BlockbusterTV.apk
       # Read by the app's "Check for update" button.
       - run: |
