@@ -50,7 +50,7 @@ function load(userId) {
   const record = findLibrary(userId)
   if (!record) return emptyLibrary()
   const data = JSON.parse(record.getString("data") || "null") || emptyLibrary()
-  data.shelves = (data.shelves || []).map((shelf) => ({ ...shelf, sets: shelf.sets || [], shuffle: !!shelf.shuffle }))
+  data.shelves = (data.shelves || []).map((shelf) => ({ ...shelf, sets: shelf.sets || [], shuffle: !!shelf.shuffle, pinned: !!shelf.pinned }))
   data.owned = data.owned || []
   return data
 }
@@ -126,7 +126,7 @@ function applyOp(data, op) {
       // The TV picks the ID so its own copy matches straight away; otherwise make one.
       const wanted = String(op.id || "")
       const id = /^[a-z0-9]{8}$/.test(wanted) && !data.shelves.some((s) => s.id === wanted) ? wanted : randomId()
-      data.shelves.push({ id, name: String(op.name || "").trim() || "New shelf", films: [], sets: [], shuffle: false })
+      data.shelves.push({ id, name: String(op.name || "").trim() || "New shelf", films: [], sets: [], shuffle: false, pinned: false })
       return id
     }
     case "renameShelf": {
@@ -164,6 +164,14 @@ function applyOp(data, op) {
         throw new BadRequestError("The shelf changed; reload and try again.")
       }
       s.films = order.map((id) => s.films.find((f) => f.jwId === id))
+      return null
+    }
+    // Pinned shelves show first, in this order, ahead of the shuffled rest. A newly pinned
+    // shelf goes to the very top.
+    case "pinShelf": {
+      const s = shelf()
+      s.pinned = !!op.pinned
+      if (s.pinned) data.shelves = [s, ...data.shelves.filter((x) => x !== s)]
       return null
     }
     case "setShuffle":

@@ -50,6 +50,12 @@ class ShelfItemsTest {
     }
 
     @Test
+    fun pinnedShelvesComeFirstInSavedOrder() {
+        val shelves = (1..10).map { Shelf("shelf$it", "Shelf $it", emptyList(), pinned = it == 7 || it == 3) }
+        for (seed in 1L..5L) assertEquals(listOf("shelf3", "shelf7"), shelves.shuffled(seed).take(2).map { it.id })
+    }
+
+    @Test
     fun cleaningDropsMissingFilmsAndEmptySets() {
         val s = shelf.copy(films = shelf.films.filterNot { it.jwId == "r1" }, sets = listOf(FilmSet("a", "A", listOf("r1")), FilmSet("b", "B", listOf("r1", "r2"))))
         assertEquals(listOf(FilmSet("b", "B", listOf("r2"))), s.withCleanSets().sets)

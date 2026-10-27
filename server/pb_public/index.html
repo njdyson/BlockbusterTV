@@ -428,7 +428,11 @@ function rank(key) {
   return (h ^ (h >>> 13)) >>> 0;
 }
 
-const shuffledShelves = () => [...library.shelves].sort((a, b) => rank(a.id) - rank(b.id));
+// Pinned shelves come first, in their saved order (newest pin on top), then the shuffled rest.
+const shuffledShelves = () => [
+  ...library.shelves.filter((s) => s.pinned),
+  ...library.shelves.filter((s) => !s.pinned).sort((a, b) => rank(a.id) - rank(b.id)),
+];
 
 /** A shelf's items in this session's random order. */
 const displayItems = (shelf) => shelfItems(shelf).sort((a, b) => rank(shelf.id + "/" + a.key) - rank(shelf.id + "/" + b.key));
@@ -463,7 +467,7 @@ function renderShelf(shelf) {
   const items = displayItems(shelf);
   const picking = selecting && selecting.shelf === shelf.id;
   const head = el("div", { className: "shelf-head" },
-    el("div", { className: "shelf-name", textContent: shelf.name }),
+    el("div", { className: "shelf-name", textContent: (shelf.pinned ? "📌 " : "") + shelf.name }),
     picking
       ? el("button", { className: "ghost small", textContent: "Cancel", onclick: () => { selecting = null; render(); } })
       : el("button", { className: "ghost small more", textContent: "⋯", title: "Shelf options", onclick: () => openShelfMenu(shelf) }));
@@ -727,7 +731,7 @@ function openSheet(film) {
   $("sheet").hidden = false;
 }
 
-// Shelf options (Rename, Make a set, Delete) in a bottom sheet, to keep the shelf header tidy.
+// Shelf options (Pin, Rename, Make a set, Delete) in a bottom sheet, to keep the shelf header tidy.
 function openShelfMenu(shelf) {
   const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
   const item = (label, onclick, disabled) => el("button", { className: "ghost", disabled, onclick: () => { close(); onclick(); } },
@@ -737,6 +741,7 @@ function openShelfMenu(shelf) {
     el("div", { className: "sheet" },
       el("div", { className: "sheet-head" }, el("div", { className: "t", textContent: shelf.name })),
       el("div", { className: "choices" },
+        item(shelf.pinned ? "Unpin" : "Pin to top", () => op({ op: "pinShelf", shelf: shelf.id, pinned: !shelf.pinned })),
         item("Rename", () => {
           const name = prompt("Shelf name", shelf.name);
           if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });

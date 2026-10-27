@@ -200,8 +200,11 @@ function render() {
   renderResults();
   $("shelves").replaceChildren(...shelves.map((shelf, i) => {
     const head = el("div", {},
-      el("div", { className: "shelf-name", textContent: shelf.name }),
+      el("div", { className: "shelf-name", textContent: (shelf.pinned ? "📌 " : "") + shelf.name }),
       el("div", { className: "shelf-tools" },
+        el("button", { className: "ghost small", textContent: shelf.pinned ? "Unpin" : "Pin",
+          title: shelf.pinned ? "Unpin shelf" : "Pin shelf to the top of the TV",
+          onclick: () => op({ op: "pinShelf", shelf: shelf.id, pinned: !shelf.pinned }) }),
         el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
           const name = prompt("Shelf name", shelf.name);
           if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
