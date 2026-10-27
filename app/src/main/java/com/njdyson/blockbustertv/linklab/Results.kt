@@ -6,12 +6,12 @@ import com.njdyson.blockbustertv.ui.Bad
 import com.njdyson.blockbustertv.ui.Good
 import com.njdyson.blockbustertv.ui.Partial
 
-enum class Outcome(val code: String, val label: String, val color: Color) {
-    TITLE("TITLE", "Opened the film", Good),
-    APP_ONLY("APP", "Opened the app, not the film", Partial),
-    OTHER("OTHER", "Opened something else", Partial),
-    FAILED("FAIL", "Nothing happened / error", Bad),
-    NO_HANDLER("NOAPP", "No app handles it", Bad),
+enum class Outcome(val code: String, val short: String, val label: String, val color: Color) {
+    TITLE("TITLE", "T", "Opened the film", Good),
+    APP_ONLY("APP", "A", "Opened the app, not the film", Partial),
+    OTHER("OTHER", "O", "Opened something else", Partial),
+    FAILED("FAIL", "F", "Nothing happened / error", Bad),
+    NO_HANDLER("NOAPP", "N", "No app handles it", Bad),
 }
 
 data class LinkResult(val outcome: Outcome, val handler: String?)
@@ -51,22 +51,20 @@ class ResultStore(context: Context) {
 /** A launched link waiting for the user to say what happened. */
 data class Pending(val id: String, val title: String, val handler: String?)
 
-/** Compact plain-text report, small enough for a QR code, to paste back into the chat. */
+/**
+ * Compact report, one short line per service, so the QR code stays small enough to scan
+ * off a TV screen. Codes: T film, A app only, O something else, F failed, N no app, - untested.
+ */
 fun buildReport(
     device: DeviceInfo,
-    apps: List<String>,
     tests: List<ServiceTest>,
     results: Map<String, LinkResult>,
 ): String = buildString {
-    appendLine("BlockbusterTV Link Lab report")
-    appendLine("device: $device")
-    appendLine("apps: ${apps.joinToString(",")}")
+    appendLine("BBTV ${device.model} API${android.os.Build.VERSION.SDK_INT} ${device.firmware}")
     tests.forEach { test ->
-        test.links.forEachIndexed { i, link ->
-            val id = linkId(test, i)
-            val r = results[id]
-            appendLine("$id ${r?.outcome?.code ?: "-"} ${r?.handler ?: ""} | ${link.label}".trimEnd())
-        }
-        results["${test.service}#home"]?.let { appendLine("${test.service}#home ${it.outcome.code} ${it.handler.orEmpty()}") }
+        val codes = test.links.indices.map { i -> "${i + 1}${results[linkId(test, i)]?.outcome?.short ?: "-"}" }
+        val home = results["${test.service}#home"]?.let { " H${it.outcome.short}" }.orEmpty()
+        val handlers = test.links.indices.mapNotNull { results[linkId(test, it)]?.handler }.distinct()
+        appendLine("${test.service} ${codes.joinToString(" ")}$home ${handlers.joinToString(",")}".trimEnd())
     }
 }

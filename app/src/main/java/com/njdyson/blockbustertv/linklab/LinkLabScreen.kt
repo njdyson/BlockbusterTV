@@ -31,12 +31,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -128,7 +130,7 @@ fun LinkLabScreen(resumeCount: Int) {
             })
         }
         if (showReport) {
-            ReportDialog(buildReport(device, apps, tests, results), onDismiss = { showReport = false })
+            ReportDialog(buildReport(device, tests, results), tests, results, onDismiss = { showReport = false })
         }
     }
 }
@@ -277,28 +279,61 @@ private fun OutcomeDialog(pending: Pending, onPick: (Outcome) -> Unit, onDismiss
 }
 
 @Composable
-private fun ReportDialog(report: String, onDismiss: () -> Unit) {
+private fun ReportDialog(
+    report: String,
+    tests: List<ServiceTest>,
+    results: Map<String, LinkResult>,
+    onDismiss: () -> Unit,
+) {
     val qr = remember(report) { qrCode(report) }
     val close = remember { FocusRequester() }
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Row(
             Modifier
+                .padding(32.dp)
                 .background(Color.White, RoundedCornerShape(12.dp))
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                .padding(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
         ) {
-            Image(qr, contentDescription = "Results QR code", modifier = Modifier.size(320.dp))
-            Column(Modifier.width(320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Scan with your phone and paste the text back into the chat.",
-                    color = Color.Black,
-                    fontSize = 14.sp,
-                    style = MaterialTheme.typography.bodyMedium,
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Image(
+                    qr,
+                    contentDescription = "Results QR code",
+                    filterQuality = FilterQuality.None,
+                    modifier = Modifier.size(360.dp),
                 )
-                Text(report, color = Color.DarkGray, fontSize = 8.sp, lineHeight = 9.sp, maxLines = 30)
+                Text("Scan it, or just photograph this screen.", color = Color.Black, fontSize = 14.sp)
                 Button(onClick = onDismiss, modifier = Modifier.focusRequester(close)) { Text("Close") }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Results", color = Color.Black, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                tests.forEach { test ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(test.serviceName, color = Color.Black, fontSize = 16.sp, modifier = Modifier.width(120.dp))
+                        test.links.indices.forEach { i -> ResultChip("${i + 1}", results[linkId(test, i)]) }
+                        ResultChip("Home", results["${test.service}#home"])
+                    }
+                }
+                Text(
+                    "Green: opened the film · Orange: app or other page · Red: failed · Grey: untested",
+                    color = Color.DarkGray,
+                    fontSize = 12.sp,
+                )
             }
         }
     }
     LaunchedEffect(Unit) { runCatching { close.requestFocus() } }
+}
+
+@Composable
+private fun ResultChip(label: String, result: LinkResult?) {
+    Text(
+        label,
+        color = Color.White,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .background(result?.outcome?.color ?: Color.LightGray, RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
 }

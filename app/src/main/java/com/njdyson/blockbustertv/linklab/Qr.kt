@@ -8,9 +8,11 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
-fun qrCode(text: String, size: Int = 600): ImageBitmap {
-    val hints = mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L, EncodeHintType.MARGIN to 2)
-    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints)
+/** One pixel per QR module; draw it with FilterQuality.None so the modules stay sharp when scaled up. */
+fun qrCode(text: String): ImageBitmap {
+    val hints = mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M, EncodeHintType.MARGIN to 4)
+    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0, hints)
+    val size = matrix.width
     val pixels = IntArray(size * size) { i ->
         if (matrix.get(i % size, i / size)) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
     }
