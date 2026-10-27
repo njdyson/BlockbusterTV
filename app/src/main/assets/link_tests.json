@@ -42,6 +42,7 @@
       "film": "Good Luck, Have Fun, Don't Die (2026)",
       "imdbId": "tt1341338",
       "packages": [
+        "com.amazon.firebat",
         "com.amazon.avod",
         "com.amazon.amazonvideo.livingroom",
         "com.amazon.avod.thirdpartyclient"

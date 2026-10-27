@@ -58,7 +58,7 @@ fun launchAppHome(context: Context, pkg: String): String? {
 }
 
 private val STREAMING_HINTS = listOf(
-    "netflix", "amazon", "avod", "disney", "apple", "bbc", "iplayer", "itv", "channel4",
+    "netflix", "firebat", "avod", "imdb", "disney", "apple", "bbc", "iplayer", "itv", "channel4",
     "nowtv", "now", "sky", "plex", "youtube", "rakuten", "britbox", "mubi",
 )
 

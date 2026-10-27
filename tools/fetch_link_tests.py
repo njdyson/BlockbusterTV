@@ -18,7 +18,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "app", "src", "main", "asset
 # JustWatch package short name -> (service key, display name, candidate app packages on Fire TV / Android TV)
 SERVICES = [
     ("nfx", "netflix", "Netflix", ["com.netflix.ninja", "com.netflix.mediaclient"]),
-    ("amp", "prime", "Prime Video", ["com.amazon.avod", "com.amazon.amazonvideo.livingroom", "com.amazon.avod.thirdpartyclient"]),
+    ("amp", "prime", "Prime Video", ["com.amazon.firebat", "com.amazon.avod", "com.amazon.amazonvideo.livingroom", "com.amazon.avod.thirdpartyclient"]),
     ("dnp", "disney", "Disney+", ["com.disney.disneyplus"]),
     ("atp", "appletv", "Apple TV", ["com.apple.atve.amazon.appletv", "com.apple.atve.androidtv.appletv"]),
     ("bbc", "iplayer", "BBC iPlayer", ["uk.co.bbc.iplayer", "bbc.iplayer.android", "uk.co.bbc.iplayer.tv"]),

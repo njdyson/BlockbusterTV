@@ -18,6 +18,17 @@ android {
         versionName = "0.1.0-linklab"
     }
 
+    signingConfigs {
+        // Committed on purpose: every build (local or GitHub Actions) must share one key,
+        // or Fire OS refuses to install an update over the previous version.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
