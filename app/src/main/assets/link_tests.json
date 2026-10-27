@@ -34,7 +34,9 @@
           "uri": "netflix://title/81757047",
           "package": null
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/348205840/s332/animals-2026.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/354632797/s1440/animals-2026.jpg"
     },
     {
       "service": "prime",
@@ -65,7 +67,9 @@
           "uri": "https://app.primevideo.com/detail?gti=amzn1.dv.gti.07af89f2-8d13-4a69-b013-589f898d41d9",
           "package": null
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/340762916/s332/good-luck-have-fun-dont-die.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/338622480/s1440/good-luck-have-fun-dont-die.jpg"
     },
     {
       "service": "disney",
@@ -84,7 +88,9 @@
           "label": "Web URL (no package)",
           "uri": "https://www.disneyplus.com/browse/entity-c99203fc-eeff-4531-a35e-1f558bedce4f"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/346646489/s332/toy-story-5.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/346646490/s1440/toy-story-5.jpg"
     },
     {
       "service": "appletv",
@@ -104,7 +110,9 @@
           "label": "Web URL (no package)",
           "uri": "https://tv.apple.com/gb/movie/the-social-network/umc.cmc.36jj4rzu3eh9jk7uhicvr4vhb?at=1000l3V2&ct=app_tvplus&itscg=30200&itsct=justwatch_tv"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/162723522/s332/the-social-network.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/184180/s1440/the-social-network.jpg"
     },
     {
       "service": "iplayer",
@@ -125,7 +133,9 @@
           "label": "Web URL (no package)",
           "uri": "http://www.bbc.co.uk/iplayer/episode/m00327nr"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/334137827/s332/the-substance.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/327004144/s1440/the-substance.jpg"
     },
     {
       "service": "itvx",
@@ -145,7 +155,9 @@
           "label": "Web URL (no package)",
           "uri": "https://www.itv.com/watch/coraline/10a3200"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/279313986/s332/coraline.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/803378/s1440/coraline.jpg"
     },
     {
       "service": "channel4",
@@ -161,7 +173,9 @@
           "label": "Web URL (no package)",
           "uri": "https://www.channel4.com/programmes/jennifers-body/on-demand/48988-001"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/249771502/s332/jennifers-body.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/240915828/s1440/jennifers-body.jpg"
     },
     {
       "service": "now",
@@ -178,7 +192,9 @@
           "label": "Web URL (no package)",
           "uri": "https://www.nowtv.com/watch/practical-magic/A5EK4Gos4kywLGqpBsQXJ?"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/11005490/s332/practical-magic.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/11005486/s1440/practical-magic.jpg"
     },
     {
       "service": "plex",
@@ -197,9 +213,13 @@
           "label": "Web URL (no package)",
           "uri": "https://watch.plex.tv/movie/the-big-short?autoplay=1&utm_content=5d776b679ab544002150af34&utm_medium=deeplink&utm_source=justWatch-v2-catalog"
         }
-      ]
+      ],
+      "poster": "https://images.justwatch.com/poster/74403282/s332/the-big-short.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/347902195/s1440/the-big-short.jpg"
     },
     {
+      "poster": "https://images.justwatch.com/poster/302449148/s332/inception.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/275196554/s1440/inception.jpg",
       "service": "youtube",
       "serviceName": "YouTube",
       "film": "Inception (2010)",

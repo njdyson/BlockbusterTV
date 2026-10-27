@@ -13,6 +13,8 @@ data class ServiceTest(
     val imdbId: String,
     val packages: List<String>,
     val links: List<LinkSpec>,
+    val poster: String? = null,
+    val backdrop: String? = null,
 )
 
 @Serializable

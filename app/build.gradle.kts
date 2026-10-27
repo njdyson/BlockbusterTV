@@ -58,5 +58,6 @@ dependencies {
     implementation(libs.androidx.tv.material)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.zxing.core)
+    implementation(libs.coil.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

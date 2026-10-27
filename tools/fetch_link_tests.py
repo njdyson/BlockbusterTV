@@ -36,6 +36,7 @@ query($pkg: String!) {
     edges { node { ... on Movie {
       content(country: GB, language: "en") {
         title originalReleaseYear externalIds { imdbId }
+        posterUrl backdrops { backdropUrl }
       }
       offers(country: GB, platform: WEB, filter: {packages: [$pkg]}) {
         standardWebURL
@@ -67,6 +68,30 @@ def pick_film(short_name):
     films = [e["node"] for e in edges if e["node"].get("offers")]
     films.sort(key=lambda n: not any(o.get("fireTv") for o in n["offers"]))
     return films[0] if films else None
+
+
+ART_QUERY = """
+query($q: String!) {
+  popularTitles(country: GB, first: 1, filter: {objectTypes: [MOVIE], searchQuery: $q}) {
+    edges { node { ... on Movie { content(country: GB, language: "en") { posterUrl backdrops { backdropUrl } } } } }
+  }
+}
+"""
+
+
+def image_url(path, profile):
+    """JustWatch image paths are templates like /poster/123/{profile}/name.{format}."""
+    if not path:
+        return None
+    return "https://images.justwatch.com" + path.replace("{profile}", profile).replace("{format}", "jpg")
+
+
+def art(content):
+    backdrops = content.get("backdrops") or [{}]
+    return {
+        "poster": image_url(content.get("posterUrl"), "s332"),
+        "backdrop": image_url(backdrops[0].get("backdropUrl"), "s1440"),
+    }
 
 
 def manual_variants(service, web_url):
@@ -112,12 +137,15 @@ def main():
             "imdbId": content["externalIds"]["imdbId"],
             "packages": packages,
             "links": links,
+            **art(content),
         })
         print(f"{name}: {label}, {len(links)} links")
 
     # YouTube: trailer, the spec's purchase search hand-off, and the film's
     # YouTube Movies store page (store video IDs come from Wikidata P1651).
+    inception = gql(ART_QUERY, {"q": "Inception"})["popularTitles"]["edges"][0]["node"]["content"]
     tests.append({
+        **art(inception),
         "service": "youtube",
         "serviceName": "YouTube",
         "film": "Inception (2010)",

@@ -1,5 +1,6 @@
 package com.njdyson.blockbustertv.linklab
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +72,7 @@ fun LinkLabScreen(resumeCount: Int) {
     var awaitingReturn by remember { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
     var lastError by remember { mutableStateOf<String?>(null) }
+    var focusedTest by remember { mutableStateOf<ServiceTest?>(null) }
 
     // Back from the other app: ask how it went.
     LaunchedEffect(resumeCount) {
@@ -92,6 +98,24 @@ fun LinkLabScreen(resumeCount: Int) {
     }
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
+        Crossfade(targetState = focusedTest?.backdrop, label = "backdrop") { url ->
+            if (url != null) {
+                Box(Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model = url,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alpha = 0.35f,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.horizontalGradient(listOf(NightNavy, NightNavy.copy(alpha = 0.4f))),
+                        ),
+                    )
+                }
+            }
+        }
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 48.dp, vertical = 27.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -104,6 +128,7 @@ fun LinkLabScreen(resumeCount: Int) {
             }
             items(tests, key = { it.service }) { test ->
                 ServiceRow(
+                    modifier = Modifier.onFocusChanged { if (it.hasFocus) focusedTest = test },
                     test = test,
                     results = results,
                     installed = installedPackage(context, test.packages),
@@ -120,7 +145,7 @@ fun LinkLabScreen(resumeCount: Int) {
 
         val p = pending
         if (p != null && !awaitingReturn) {
-            OutcomeDialog(p, onPick = { outcome ->
+            OutcomeDialog(p, tests.firstOrNull { p.id.startsWith("${it.service}#") }, onPick = { outcome ->
                 record(p.id, LinkResult(outcome, p.handler))
                 pending = null
                 store.pending = null
@@ -173,6 +198,7 @@ private fun Header(
 
 @Composable
 private fun ServiceRow(
+    modifier: Modifier,
     test: ServiceTest,
     results: Map<String, LinkResult>,
     installed: String?,
@@ -180,38 +206,41 @@ private fun ServiceRow(
     onHome: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(test.serviceName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.width(12.dp))
-            Text(test.film, fontSize = 16.sp, color = TicketYellow)
-            Spacer(Modifier.width(12.dp))
-            Text(
-                installed?.let { "installed: $it" } ?: "app not found",
-                fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.6f),
-            )
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-            itemsIndexed(test.links) { i, link ->
-                val handler = remember(link) { resolveHandler(context, link) }
-                LinkCard(
-                    title = "${i + 1}. ${link.label}",
-                    detail = link.uri,
-                    handler = handler?.let { "→ $it" } ?: "→ no handler found",
-                    result = results[linkId(test, i)],
-                    onClick = { onLink(i, link) },
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Poster(test.poster, Modifier.width(100.dp).height(150.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(test.serviceName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.width(12.dp))
+                Text(test.film, fontSize = 16.sp, color = TicketYellow)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    installed?.let { "installed: $it" } ?: "app not found",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.6f),
                 )
             }
-            if (installed != null) {
-                item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                itemsIndexed(test.links) { i, link ->
+                    val handler = remember(link) { resolveHandler(context, link) }
                     LinkCard(
-                        title = "Fallback: open app home",
-                        detail = installed,
-                        handler = "→ $installed",
-                        result = results["${test.service}#home"],
-                        onClick = { onHome(installed) },
+                        title = "${i + 1}. ${link.label}",
+                        detail = link.uri,
+                        handler = handler?.let { "→ $it" } ?: "→ no handler found",
+                        result = results[linkId(test, i)],
+                        onClick = { onLink(i, link) },
                     )
+                }
+                if (installed != null) {
+                    item {
+                        LinkCard(
+                            title = "Fallback: open app home",
+                            detail = installed,
+                            handler = "→ $installed",
+                            result = results["${test.service}#home"],
+                            onClick = { onHome(installed) },
+                        )
+                    }
                 }
             }
         }
@@ -256,22 +285,27 @@ private fun LinkCard(title: String, detail: String, handler: String, result: Lin
 }
 
 @Composable
-private fun OutcomeDialog(pending: Pending, onPick: (Outcome) -> Unit, onDismiss: () -> Unit) {
+private fun OutcomeDialog(pending: Pending, test: ServiceTest?, onPick: (Outcome) -> Unit, onDismiss: () -> Unit) {
     val first = remember { FocusRequester() }
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Row(
             Modifier
+                .width(640.dp)
                 .background(ShelfGrey, RoundedCornerShape(12.dp))
                 .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text("What happened?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TicketYellow)
-            Text(pending.title, fontSize = 14.sp, color = Color.White)
-            listOf(Outcome.TITLE, Outcome.APP_ONLY, Outcome.OTHER, Outcome.FAILED).forEachIndexed { i, outcome ->
-                Button(
-                    onClick = { onPick(outcome) },
-                    modifier = Modifier.fillMaxWidth().let { if (i == 0) it.focusRequester(first) else it },
-                ) { Text(outcome.label) }
+            if (test != null) Poster(test.poster, Modifier.width(160.dp).height(240.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Did it open this film?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TicketYellow)
+                if (test != null) Text(test.film, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(pending.title, fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
+                listOf(Outcome.TITLE, Outcome.APP_ONLY, Outcome.OTHER, Outcome.FAILED).forEachIndexed { i, outcome ->
+                    Button(
+                        onClick = { onPick(outcome) },
+                        modifier = Modifier.fillMaxWidth().let { if (i == 0) it.focusRequester(first) else it },
+                    ) { Text(outcome.label) }
+                }
             }
         }
     }
@@ -335,5 +369,15 @@ private fun ResultChip(label: String, result: LinkResult?) {
         modifier = Modifier
             .background(result?.outcome?.color ?: Color.LightGray, RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun Poster(url: String?, modifier: Modifier) {
+    AsyncImage(
+        model = url,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier.background(ShelfGrey, RoundedCornerShape(6.dp)),
     )
 }
