@@ -407,19 +407,18 @@ internal fun VhsBox(
 }
 
 /**
- * Zoomed out: every shelf as a tile showing its first four posters, five to a row.
- * Selecting a tile goes back to the shelves, at that shelf.
+ * Zoomed out: every shelf as a tile showing its first four posters, seven to a row and
+ * sized so two full rows fit on screen. Selecting a tile goes back to that shelf.
  */
 @Composable
 private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -> Unit) {
     val currentShelf = app.focusedKey?.substringBefore(':')
-    Column(Modifier.padding(top = 16.dp)) {
-        ShelfSign("All shelves")
+    Column(Modifier.padding(top = 4.dp)) {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(5),
-            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            columns = GridCells.Fixed(7),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             itemsIndexed(shelves, key = { _, shelf -> shelf.id }) { i, shelf ->
                 val focusRequester = remember { FocusRequester() }
@@ -439,12 +438,12 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
                     border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TicketYellow))),
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
                 ) {
-                    Column(Modifier.padding(8.dp)) {
+                    Column(Modifier.padding(6.dp)) {
                         val posters = shelf.displayItems(app.shuffleSeed).take(4).map { item ->
                             item.cover?.let { app.films[it.jwId]?.poster ?: it.poster }
                         }
                         for (row in 0..1) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(bottom = 3.dp)) {
                                 for (col in 0..1) {
                                     val url = posters.getOrNull(row * 2 + col)
                                     Box(
@@ -460,10 +459,10 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
                                 }
                             }
                         }
-                        Text(shelf.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(shelf.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             if (shelf.films.size == 1) "1 film" else "${shelf.films.size} films",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.6f),
                         )
                     }
