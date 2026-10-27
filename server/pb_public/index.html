@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A143C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blockbuster">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>BlockbusterTV</title>
+<style>
+  :root {
+    --navy: #0A143C; --blue: #102E8C; --shelf: #1C2550; --yellow: #FFCC00;
+    --text: #FFFFFF; --muted: rgba(255,255,255,.65); --good: #4CAF50;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body {
+    margin: 0; background: var(--navy); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 0 16px calc(48px + env(safe-area-inset-bottom));
+  }
+  header {
+    position: sticky; top: 0; z-index: 2; background: var(--navy);
+    padding: calc(14px + env(safe-area-inset-top)) 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .logo { background: var(--yellow); color: var(--navy); font-weight: 900; letter-spacing: .5px;
+          padding: 3px 10px; border-radius: 5px; }
+  .logo + b { font-weight: 900; }
+  #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  h2 { font-size: 13px; letter-spacing: 2px; color: var(--yellow); margin: 22px 0 8px; }
+  input[type=search], input[type=email], input[type=password] {
+    width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 10px;
+    border: 2px solid transparent; background: #fff; color: #111;
+  }
+  input:focus { outline: none; border-color: var(--yellow); }
+  button {
+    font: inherit; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer;
+    background: var(--yellow); color: var(--navy); font-weight: 700;
+  }
+  button.ghost { background: rgba(255,255,255,.12); color: var(--text); font-weight: 600; }
+  button.small { padding: 6px 9px; font-size: 14px; }
+  button:disabled { opacity: .4; }
+  .card { background: var(--shelf); border-radius: 12px; padding: 16px; margin-top: 12px; }
+  .stack { display: grid; gap: 10px; }
+  .muted { color: var(--muted); font-size: 14px; }
+
+  /* Search results: a grid of posters, tap one to choose a shelf. minmax(0, …) stops
+     long titles widening the page. */
+  .results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .result { all: unset; cursor: pointer; display: block; min-width: 0; -webkit-tap-highlight-color: transparent; }
+  .result .poster { position: relative; }
+  .result img, .result .noposter { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+  .result .title { font-weight: 700; font-size: 13px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result .year { color: var(--muted); font-size: 12px; }
+  .badge { position: absolute; top: 6px; right: 6px; background: var(--good); color: #fff; border-radius: 999px;
+           font-size: 11px; font-weight: 700; padding: 2px 7px; }
+
+  .shelf { background: var(--shelf); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .shelf-name { font-weight: 800; font-size: 18px; overflow-wrap: anywhere; }
+  .shelf-tools { display: flex; gap: 6px; margin-top: 8px; }
+  .films { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; scroll-snap-type: x proximity; }
+  .film { flex: none; width: 96px; scroll-snap-align: start; position: relative; }
+  .film img, .film .noposter { width: 96px; height: 144px; object-fit: cover; border-radius: 5px; background: #000; display: block; }
+  .noposter { display: flex !important; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: 12px; color: var(--muted); }
+  .film .name { font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .film .tools { display: flex; gap: 4px; margin-top: 4px; }
+  .film .tools button { flex: 1; padding: 4px 0; font-size: 13px; }
+  .owned { position: absolute; top: 4px; left: 4px; background: #e00; color: #fff; font-size: 10px; font-weight: 700;
+           border-radius: 4px; padding: 1px 5px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+  .error { background: #5c1a1a; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+  .tv { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); }
+  .tv:first-child { border-top: 0; }
+  .tv .grow { flex: 1; min-width: 0; }
+  footer { margin-top: 24px; font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  footer a { color: var(--yellow); }
+
+  /* Bottom sheet: "Add <film> to…" */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--shelf);
+    border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 80vh; overflow-y: auto; box-shadow: 0 -8px 30px rgba(0,0,0,.4);
+  }
+  .sheet-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .sheet-head img, .sheet-head .noposter { width: 48px; height: 72px; border-radius: 5px; object-fit: cover; flex: none; background: #000; }
+  .sheet-head .t { font-weight: 800; font-size: 18px; line-height: 1.2; }
+  .sheet-head .y { color: var(--muted); font-size: 14px; }
+  .choices { display: grid; gap: 8px; }
+  .choices button { width: 100%; text-align: left; padding: 14px 16px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+  .choices button.on { background: rgba(76,175,80,.25); color: #fff; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
+    z-index: 20; box-shadow: 0 6px 20px rgba(0,0,0,.35); max-width: calc(100% - 32px); text-align: center;
+  }
+</style>
+</head>
+<body>
+<header><span class="logo">BLOCKBUSTER</span><b>TV</b><span id="status"></span></header>
+
+<!-- Signed out -->
+<section id="loginView" hidden>
+  <form class="card stack" id="loginForm">
+    <div style="font-weight:800;font-size:20px">Sign in</div>
+    <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+    <button>Sign in</button>
+    <div class="muted">Accounts are set up by the person who runs this BlockbusterTV.</div>
+  </form>
+</section>
+
+<!-- Signed in -->
+<section id="mainView" hidden>
+  <div id="pairCard"></div>
+
+  <h2>ADD A FILM</h2>
+  <input type="search" id="q" placeholder="Start typing a film title" autocomplete="off" autocorrect="off" enterkeyhint="search">
+  <div class="results" id="results"></div>
+
+  <h2>YOUR SHELVES</h2>
+  <div id="shelves"></div>
+  <button class="ghost" id="newShelf">+ New shelf</button>
+
+  <h2>YOUR TVS</h2>
+  <div class="card" id="tvs"></div>
+
+  <footer>
+    <span id="who"></span>
+    <a href="#" id="backup">Download backup</a>
+    <a href="#" id="signOut">Sign out</a>
+  </footer>
+</section>
+
+<div id="error"></div>
+<div id="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+const TOKEN = "bbtv_token";
+let token = localStorage.getItem(TOKEN) || "";
+let library = { shelves: [], owned: [] };
+let results = [];
+let busy = false;
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...children) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+};
+
+class AuthError extends Error {}
+
+async function api(path, body, method) {
+  const res = await fetch(path, {
+    method: method || (body ? "POST" : "GET"),
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: token } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new AuthError(data.message || "Please sign in again.");
+  if (!res.ok) throw new Error(data.message || `Something went wrong (${res.status}).`);
+  return data;
+}
+
+function showError(e) {
+  if (e instanceof AuthError) return signedOut();
+  $("error").replaceChildren(e ? el("div", { className: "error", textContent: String(e.message || e) }) : "");
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 2400);
+}
+
+// --- Signing in -------------------------------------------------------------
+
+function signedOut() {
+  token = "";
+  localStorage.removeItem(TOKEN);
+  $("mainView").hidden = true;
+  $("loginView").hidden = false;
+  $("status").textContent = "";
+}
+
+$("loginForm").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const auth = await api("/api/collections/users/auth-with-password", { identity: $("email").value, password: $("password").value });
+    token = auth.token;
+    localStorage.setItem(TOKEN, token);
+    showError(null);
+    start(auth.record);
+  } catch (err) {
+    $("error").replaceChildren(el("div", { className: "error", textContent: "That email and password didn't match." }));
+  }
+};
+
+$("signOut").onclick = (e) => { e.preventDefault(); signedOut(); };
+
+async function start(user) {
+  $("loginView").hidden = true;
+  $("mainView").hidden = false;
+  $("who").textContent = "Signed in as " + user.email;
+  await Promise.all([load(), loadTvs(), showPairing()]);
+}
+
+// --- Library ----------------------------------------------------------------
+
+async function load() {
+  try {
+    const data = await api("/api/bbtv/library");
+    // Only redraw when something changed, so polling doesn't reset scroll positions.
+    if (JSON.stringify(data) !== JSON.stringify(library)) {
+      library = data;
+      render();
+    }
+    $("status").textContent = "Saved";
+    showError(null);
+  } catch (e) {
+    $("status").textContent = "Offline";
+    showError(e);
+  }
+}
+
+async function op(body) {
+  busy = true;
+  try {
+    const data = await api("/api/bbtv/op", body);
+    const created = data.created;
+    delete data.created;
+    library = data;
+    render();
+    showError(null);
+    return created || true;
+  } catch (e) {
+    showError(e);
+    return false;
+  } finally {
+    busy = false;
+  }
+}
+
+function poster(film) {
+  return film.poster
+    ? el("img", { src: film.poster, alt: "", loading: "lazy" })
+    : el("div", { className: "noposter", textContent: film.title });
+}
+
+function render() {
+  renderResults();
+  const shelves = library.shelves;
+  $("shelves").replaceChildren(...(shelves.length ? shelves.map((shelf, i) => {
+    const head = el("div", {},
+      el("div", { className: "shelf-name", textContent: shelf.name }),
+      el("div", { className: "shelf-tools" },
+        el("button", { className: "ghost small", textContent: "↑", title: "Move up", disabled: i === 0,
+          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: -1 }) }),
+        el("button", { className: "ghost small", textContent: "↓", title: "Move down", disabled: i === shelves.length - 1,
+          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: 1 }) }),
+        el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+          const name = prompt("Shelf name", shelf.name);
+          if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
+        } }),
+        el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
+          if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
+        } }),
+      ));
+    const films = shelf.films.length
+      ? el("div", { className: "films" }, ...shelf.films.map((f, j) => el("div", { className: "film" },
+          poster(f),
+          ...(library.owned.includes(f.jwId) ? [el("span", { className: "owned", textContent: "OWNED" })] : []),
+          el("div", { className: "name", textContent: f.title }),
+          el("div", { className: "tools" },
+            el("button", { className: "ghost", textContent: "◀", disabled: j === 0,
+              onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: -1 }) }),
+            el("button", { className: "ghost", textContent: "✕", title: "Remove",
+              onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
+            el("button", { className: "ghost", textContent: "▶", disabled: j === shelf.films.length - 1,
+              onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: 1 }) }),
+          ))))
+      : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." });
+    return el("div", { className: "shelf" }, head, films);
+  }) : [el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." })]));
+}
+
+// --- Search and add ---------------------------------------------------------
+
+const shelvesWith = (film) => library.shelves.filter((s) => s.films.some((f) => f.jwId === film.jwId));
+
+function renderResults() {
+  $("results").replaceChildren(...results.map((film) => {
+    const on = shelvesWith(film).length;
+    return el("button", { className: "result", onclick: () => openSheet(film) },
+      el("div", { className: "poster" }, poster(film), ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
+      el("div", { className: "title", textContent: film.title }),
+      el("div", { className: "year", textContent: film.year || "" }));
+  }));
+}
+
+// Search as you type, ignoring answers that arrive after a newer search started.
+let searchTimer, searchSeq = 0;
+$("q").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 350);
+});
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { clearTimeout(searchTimer); search(); $("q").blur(); }
+});
+
+async function search() {
+  const q = $("q").value.trim();
+  const seq = ++searchSeq;
+  if (!q) { results = []; renderResults(); return; }
+  try {
+    const found = await api("/api/bbtv/search?q=" + encodeURIComponent(q));
+    if (seq !== searchSeq) return;
+    results = found;
+    renderResults();
+    if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: "No films found." }));
+  } catch (err) { showError(err); }
+}
+
+function openSheet(film) {
+  $("q").blur();
+  const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
+  const added = (shelf) => { toast(`Added ${film.title} to ${shelf.name}`); close(); };
+  const choices = library.shelves.map((shelf) => {
+    const on = shelf.films.some((f) => f.jwId === film.jwId);
+    return el("button", {
+      className: on ? "ghost on" : "",
+      onclick: async () => {
+        if (!on && await op({ op: "addFilm", shelf: shelf.id, film })) added(shelf);
+      },
+    }, el("span", { textContent: shelf.name }), el("span", { textContent: on ? "✓ On shelf" : "Add" }));
+  });
+  const newShelf = el("button", { className: "ghost", onclick: async () => {
+    const name = prompt("New shelf name");
+    if (!name || !name.trim()) return;
+    const id = await op({ op: "addShelf", name });
+    if (id && await op({ op: "addFilm", shelf: id, film })) added(library.shelves.find((s) => s.id === id));
+  } }, el("span", { textContent: "+ New shelf…" }), el("span"));
+  $("sheet").replaceChildren(
+    el("div", { className: "scrim", onclick: close }),
+    el("div", { className: "sheet" },
+      el("div", { className: "sheet-head" }, poster(film),
+        el("div", {}, el("div", { className: "t", textContent: film.title }), el("div", { className: "y", textContent: film.year || "" }))),
+      el("div", { className: "choices" }, ...choices, newShelf,
+        el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
+    ));
+  $("sheet").hidden = false;
+}
+
+$("newShelf").onclick = () => {
+  const name = prompt("New shelf name");
+  if (name && name.trim()) op({ op: "addShelf", name });
+};
+
+// --- TVs --------------------------------------------------------------------
+
+// The TV's "Link to your account" QR code opens this app at /#pair=CODE.
+async function showPairing() {
+  const code = new URLSearchParams(location.hash.slice(1)).get("pair");
+  if (!code) return $("pairCard").replaceChildren();
+  const clear = () => { history.replaceState(null, "", "/"); $("pairCard").replaceChildren(); };
+  try {
+    const info = await api("/api/bbtv/pair/info?code=" + encodeURIComponent(code));
+    $("pairCard").replaceChildren(el("div", { className: "card stack" },
+      el("div", { style: "font-weight:800;font-size:18px", textContent: `Link "${info.name}" to your account?` }),
+      el("div", { className: "muted", textContent: `Code ${code.toUpperCase()}. The TV will show your shelves, and edits on either will appear on both.` }),
+      el("button", { textContent: "Link this TV", onclick: async () => {
+        try {
+          await api("/api/bbtv/pair/approve", { code });
+          toast(`${info.name} is linked`);
+          clear();
+          loadTvs();
+        } catch (e) { showError(e); }
+      } }),
+      el("button", { className: "ghost", textContent: "Not now", onclick: clear })));
+  } catch (e) {
+    $("pairCard").replaceChildren(el("div", { className: "error", textContent: e.message }));
+    history.replaceState(null, "", "/");
+  }
+}
+window.addEventListener("hashchange", showPairing);
+
+async function loadTvs() {
+  try {
+    const tvs = await api("/api/bbtv/devices");
+    $("tvs").replaceChildren(...(tvs.length ? tvs.map((tv) => el("div", { className: "tv" },
+      el("div", { className: "grow" },
+        el("div", { style: "font-weight:700", textContent: tv.name || "TV" }),
+        el("div", { className: "muted", textContent: tv.lastSeen ? "Last seen " + new Date(tv.lastSeen.replace(" ", "T")).toLocaleString() : "" })),
+      el("button", { className: "ghost small", textContent: "Unlink", onclick: async () => {
+        if (!confirm(`Unlink ${tv.name}? It keeps its current shelves but stops syncing.`)) return;
+        try { await api("/api/bbtv/devices/remove", { id: tv.id }); loadTvs(); } catch (e) { showError(e); }
+      } }),
+    )) : [el("div", { className: "muted", textContent: "No TVs linked yet. On the TV, open Settings > Link to your account, and scan the code." })]));
+  } catch (e) { showError(e); }
+}
+
+// --- Backup -----------------------------------------------------------------
+
+$("backup").onclick = (e) => {
+  e.preventDefault();
+  const blob = new Blob([JSON.stringify(library, null, 2)], { type: "application/json" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "blockbustertv-shelves.json" });
+  document.body.append(a);
+  a.click();
+  a.remove();
+};
+
+// --- Start ------------------------------------------------------------------
+
+(async () => {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  if (!token) return signedOut();
+  try {
+    // Refreshing extends the sign-in, so regular use never has to sign in again.
+    const auth = await api("/api/collections/users/auth-refresh", {});
+    token = auth.token;
+    localStorage.setItem(TOKEN, token);
+    start(auth.record);
+  } catch (e) {
+    if (e instanceof AuthError) signedOut();
+    else { $("status").textContent = "Offline"; showError(e); }
+  }
+})();
+
+// Pick up edits made on a TV.
+setInterval(() => {
+  if (token && !busy && document.visibilityState === "visible" && !$("mainView").hidden) load();
+}, 10000);
+</script>
+</body>
+</html>
