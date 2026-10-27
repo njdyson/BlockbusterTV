@@ -27,21 +27,27 @@ are served as they are. The database lives in a separate folder that deploys nev
 3. **Git:** on the subdomain, **Git > Add Repository**:
    - Remote Git hosting, URL `https://github.com/njdyson/BlockbusterTV.git` (public, no key needed)
    - Deployment mode: **Automatic**
-   - Deployment path: **`blockbuster-app`** (a folder next to the website, not inside it)
+   - Deployment path: the subdomain's folder (the default) is fine: nginx sends every
+     request to PocketBase, so the files are never served directly
    - Then choose the branch **`link-lab`** in the repository's settings.
 
    To deploy on every push, copy the **Webhook URL** Plesk shows into GitHub: the repo's
    **Settings > Webhooks > Add webhook** (content type `application/json`). Otherwise
    press **Pull Updates** in Plesk when there's something new.
-4. **Start the server** (once, as root: over SSH, `ssh root@185.230.218.116`, or in Plesk's
-   **Tools & Settings > SSH Terminal** if that extension is installed):
-   ```
-   sudo APP_DIR=/var/www/vhosts/psybob.uk/blockbuster-app bash /var/www/vhosts/psybob.uk/blockbuster-app/server/deploy/install.sh
-   ```
-   It downloads PocketBase, sets it up as a service that starts with the server, and asks
-   for an admin email and password. The database goes in
-   `/var/www/vhosts/psybob.uk/blockbuster-data`. (Running it again is safe; it's only needed
-   again if an update says so, e.g. for a new PocketBase version.)
+4. **Start the server** (once, as root). Use the folder Plesk deploys to (step 3); if you
+   kept the default, that's the subdomain's own folder, as below.
+   - **From a phone (no SSH):** **Tools & Settings > Scheduled Tasks > Add Task**, system
+     user **root**, task type **Run a command**, with this command (your own email and a new
+     password), save it, press **Run Now**, then delete the task (it contains the password):
+     ```
+     ADMIN_EMAIL='you@example.com' ADMIN_PASSWORD='a-new-password' APP_DIR=/var/www/vhosts/psybob.uk/blockbuster.psybob.uk bash /var/www/vhosts/psybob.uk/blockbuster.psybob.uk/server/deploy/install.sh
+     ```
+   - **Over SSH** (`ssh root@185.230.218.116`): run the same without the ADMIN_ settings and it
+     asks for them: `sudo APP_DIR=… bash …/server/deploy/install.sh`.
+
+   It downloads PocketBase, sets it up as a service that starts with the server, and creates
+   the dashboard admin. The database goes in `/var/www/vhosts/psybob.uk/blockbuster-data`.
+   (Running it again is safe; it's only needed again if an update says so.)
 5. **Connect the subdomain to it:** on the subdomain, **Apache & nginx Settings**, paste
    `deploy/nginx-directives.conf` into **Additional nginx directives**, and save.
 6. **Check:** https://blockbuster.psybob.uk shows the sign-in page, and

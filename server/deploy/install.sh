@@ -10,8 +10,14 @@
 #
 # Without APP_DIR the script clones the repo itself into /opt/blockbustertv (re-run to update).
 #
+# It can also run non-interactively, e.g. as a Plesk Scheduled Task (Run Now) as root:
+# set ADMIN_EMAIL and ADMIN_PASSWORD to create the dashboard admin on first install.
+#
 # Re-running is safe: the database is never touched except to apply new migrations.
 set -euo pipefail
+# Scheduled tasks start with a minimal PATH.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export DEBIAN_FRONTEND=noninteractive
 
 PB_VERSION="${PB_VERSION:-0.40.6}"
 PORT="${PORT:-8095}"
@@ -97,9 +103,18 @@ fi
 
 # First install: create the admin account for the dashboard (https://<your domain>/_/).
 if [ ! -f "$DATA/.admin-created" ]; then
-  read -rp "Admin email for the PocketBase dashboard: " email
-  read -rsp "Admin password (10+ characters): " password; echo
-  sudo -u "$RUN_AS" "$BIN_DIR/pocketbase" superuser upsert "$email" "$password" --dir="$DATA"
-  sudo -u "$RUN_AS" touch "$DATA/.admin-created"
+  email="${ADMIN_EMAIL:-}"
+  password="${ADMIN_PASSWORD:-}"
+  if [ -z "$email" ] && [ -t 0 ]; then
+    read -rp "Admin email for the PocketBase dashboard: " email
+    read -rsp "Admin password (10+ characters): " password; echo
+  fi
+  if [ -n "$email" ]; then
+    sudo -u "$RUN_AS" "$BIN_DIR/pocketbase" superuser upsert "$email" "$password" --dir="$DATA"
+    sudo -u "$RUN_AS" touch "$DATA/.admin-created"
+    echo "Dashboard admin $email created."
+  else
+    echo "No dashboard admin yet: run again with ADMIN_EMAIL and ADMIN_PASSWORD set."
+  fi
 fi
 echo "Done."
