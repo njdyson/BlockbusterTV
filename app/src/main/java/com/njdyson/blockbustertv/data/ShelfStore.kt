@@ -41,6 +41,8 @@ data class Shelf(
     val sets: List<FilmSet> = emptyList(),
     /** No longer used (every shelf is shuffled); kept so saved data and the server's copy still read. */
     val shuffle: Boolean = false,
+    /** Pinned shelves show first, in saved order, ahead of the shuffled rest. */
+    val pinned: Boolean = false,
 )
 
 @Serializable
@@ -111,6 +113,16 @@ class ShelfStore(context: Context) {
     fun deleteShelf(id: String) {
         update { list -> list.filterNot { it.id == id } }
         send("deleteShelf") { put("shelf", id) }
+    }
+
+    /** Pinning also moves the shelf to the top of the saved order, so the newest pin shows first. */
+    fun pinShelf(id: String, pinned: Boolean) {
+        update { list ->
+            val shelf = list.firstOrNull { it.id == id } ?: return@update list
+            val changed = shelf.copy(pinned = pinned)
+            if (pinned) listOf(changed) + list.filterNot { it.id == id } else list.map { if (it.id == id) changed else it }
+        }
+        send("pinShelf") { put("shelf", id); put("pinned", pinned) }
     }
 
     fun addFilm(shelfId: String, film: ShelfFilm) {

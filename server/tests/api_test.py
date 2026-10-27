@@ -97,6 +97,10 @@ try:
     assert shelf_of(lib)["shuffle"] is True
     lib = call("POST", "/api/bbtv/op", {"op": "ungroupSet", "shelf": "rocky000", "set": rocky_set}, token=token)
     assert shelf_of(lib)["sets"] == [] and len(shelf_of(lib)["films"]) == 5
+    lib = call("POST", "/api/bbtv/op", {"op": "pinShelf", "shelf": "rocky000", "pinned": True}, token=token)
+    assert lib["shelves"][0]["id"] == "rocky000" and shelf_of(lib)["pinned"] is True  # pinning moves it to the top
+    lib = call("POST", "/api/bbtv/op", {"op": "pinShelf", "shelf": "rocky000", "pinned": False}, token=token)
+    assert shelf_of(lib)["pinned"] is False
     call("POST", "/api/bbtv/op", {"op": "deleteShelf", "shelf": "rocky000"}, token=token)
     print("sets and shuffle ok")
 

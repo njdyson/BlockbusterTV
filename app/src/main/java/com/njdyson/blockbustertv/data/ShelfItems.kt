@@ -44,8 +44,9 @@ fun Shelf.items(yearOf: (ShelfFilm) -> Int? = { it.year }): List<ShelfItem> {
 fun Shelf.displayItems(seed: Long, yearOf: (ShelfFilm) -> Int? = { it.year }): List<ShelfItem> =
     items(yearOf).sortedBy { shuffleRank(seed, id + "/" + it.key) }
 
-/** Shelves in a random order fixed for the session's [seed]. */
-fun List<Shelf>.shuffled(seed: Long): List<Shelf> = sortedBy { shuffleRank(seed, it.id) }
+/** Pinned shelves first, in saved order, then the rest in a random order fixed for the session's [seed]. */
+fun List<Shelf>.shuffled(seed: Long): List<Shelf> =
+    filter { it.pinned } + filterNot { it.pinned }.sortedBy { shuffleRank(seed, it.id) }
 
 /** A well-mixed number from the seed and a key (SplitMix64 finaliser), for stable shuffling. */
 private fun shuffleRank(seed: Long, key: String): Long {
