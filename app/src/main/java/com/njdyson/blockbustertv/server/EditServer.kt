@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.net.Inet4Address
@@ -76,6 +77,7 @@ class EditServer(
             "addShelf" -> store.addShelf(s("name"))
             "renameShelf" -> store.renameShelf(s("shelf"), s("name"))
             "deleteShelf" -> store.deleteShelf(s("shelf"))
+            "pinShelf" -> store.pinShelf(s("shelf"), op["pinned"]?.jsonPrimitive?.booleanOrNull == true)
             "addFilm" -> store.addFilm(s("shelf"), json.decodeFromJsonElement(ShelfFilm.serializer(), op["film"]!!))
             "removeFilm" -> store.removeFilm(s("shelf"), s("jwId"))
             else -> error("Unknown op ${s("op")}")
