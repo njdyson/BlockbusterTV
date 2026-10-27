@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A143C">
+<title>BlockbusterTV shelves</title>
+<style>
+  :root {
+    --navy: #0A143C; --blue: #102E8C; --shelf: #1C2550; --yellow: #FFCC00;
+    --text: #FFFFFF; --muted: rgba(255,255,255,.65); --good: #4CAF50;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body {
+    margin: 0; background: var(--navy); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 0 16px calc(48px + env(safe-area-inset-bottom));
+  }
+  header {
+    position: sticky; top: 0; z-index: 2; background: var(--navy);
+    padding: 14px 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .logo { background: var(--yellow); color: var(--navy); font-weight: 900; letter-spacing: .5px;
+          padding: 3px 10px; border-radius: 5px; }
+  .logo + b { font-weight: 900; }
+  #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  h2 { font-size: 13px; letter-spacing: 2px; color: var(--yellow); margin: 22px 0 8px; }
+  .search { position: relative; }
+  input[type=search] {
+    width: 100%; font: inherit; font-size: 17px; padding: 12px 40px 12px 14px; border-radius: 10px;
+    border: 2px solid transparent; background: #fff; color: #111;
+  }
+  input[type=search]:focus { outline: none; border-color: var(--yellow); }
+  button {
+    font: inherit; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer;
+    background: var(--yellow); color: var(--navy); font-weight: 700;
+  }
+  button.ghost { background: rgba(255,255,255,.12); color: var(--text); font-weight: 600; }
+  button.small { padding: 6px 9px; font-size: 14px; }
+  button:disabled { opacity: .4; }
+
+  /* Search results: a grid of posters, tap one to choose a shelf. minmax(0, …) stops
+     long titles widening the page. */
+  .results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .result { all: unset; cursor: pointer; display: block; min-width: 0; -webkit-tap-highlight-color: transparent; }
+  .result .poster { position: relative; }
+  .result img, .result .noposter { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+  .result .title { font-weight: 700; font-size: 13px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result .year { color: var(--muted); font-size: 12px; }
+  .badge { position: absolute; top: 6px; right: 6px; background: var(--good); color: #fff; border-radius: 999px;
+           font-size: 11px; font-weight: 700; padding: 2px 7px; }
+
+  .shelf { background: var(--shelf); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .shelf-name { font-weight: 800; font-size: 18px; overflow-wrap: anywhere; }
+  .shelf-tools { display: flex; gap: 6px; margin-top: 8px; }
+  .films { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; scroll-snap-type: x proximity; }
+  .film { flex: none; width: 96px; scroll-snap-align: start; }
+  .film img, .film .noposter { width: 96px; height: 144px; object-fit: cover; border-radius: 5px; background: #000; display: block; }
+  /* Stand-in for missing or broken art: same size as a poster, title on a store-blue case
+     with yellow label stripes. Background is !important to beat the per-context #000. */
+  .noposter { display: flex !important; align-items: center; justify-content: center; text-align: center; position: relative; overflow: hidden; min-height: 0;
+    padding: 20px 8px; font-size: 13px; font-weight: 700; line-height: 1.2; color: var(--text);
+    background: linear-gradient(160deg, var(--blue), var(--navy) 85%) !important; }
+  .noposter::before, .noposter::after { content: ""; position: absolute; left: 0; right: 0; height: 4%; background: var(--yellow); }
+  .noposter::before { top: 6%; }
+  .noposter::after { bottom: 6%; }
+  .noposter span { width: 100%; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .sheet-head .noposter { font-size: 8px; padding: 8px 3px; }
+  .film .name { font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .film .tools { display: flex; gap: 4px; margin-top: 4px; }
+  .film .tools button { flex: 1; padding: 4px 0; font-size: 13px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+  .error { background: #5c1a1a; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+  footer { margin-top: 24px; font-size: 13px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+  footer a { color: var(--yellow); }
+
+  /* Bottom sheet: "Add <film> to…" */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--shelf);
+    border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 80vh; overflow-y: auto; box-shadow: 0 -8px 30px rgba(0,0,0,.4);
+  }
+  .sheet-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .sheet-head img, .sheet-head .noposter { width: 48px; height: 72px; border-radius: 5px; object-fit: cover; flex: none; background: #000; }
+  .sheet-head .t { font-weight: 800; font-size: 18px; line-height: 1.2; }
+  .sheet-head .y { color: var(--muted); font-size: 14px; }
+  .choices { display: grid; gap: 8px; }
+  .choices button { width: 100%; text-align: left; padding: 14px 16px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+  .choices button.on { background: rgba(76,175,80,.25); color: #fff; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
+    z-index: 20; box-shadow: 0 6px 20px rgba(0,0,0,.35); max-width: calc(100% - 32px); text-align: center;
+  }
+</style>
+</head>
+<body>
+<header><span class="logo">BLOCKBUSTER</span><b>TV</b><span id="status"></span></header>
+
+<h2>ADD A FILM</h2>
+<div class="search">
+  <input type="search" id="q" placeholder="Start typing a film title" autocomplete="off" autocorrect="off" enterkeyhint="search">
+</div>
+<div class="results" id="results"></div>
+
+<h2>YOUR SHELVES</h2>
+<div id="shelves"></div>
+<button class="ghost" id="newShelf">+ New shelf</button>
+<div id="error"></div>
+
+<footer>
+  <span>Changes appear on the TV straight away.</span>
+  <a id="backup" href="#">Download backup</a>
+</footer>
+
+<div id="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+const key = new URLSearchParams(location.search).get("k") || "";
+let shelves = [];
+let results = [];
+let busy = false;
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...children) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+};
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: { "X-Key": key, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function showError(e) {
+  $("error").replaceChildren(e ? el("div", { className: "error", textContent: String(e.message || e) }) : "");
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 2200);
+}
+
+async function load() {
+  try {
+    const data = await api("/api/shelves");
+    // Only redraw when something changed, so polling doesn't reset scroll positions.
+    if (JSON.stringify(data.shelves) !== JSON.stringify(shelves)) {
+      shelves = data.shelves;
+      render();
+    }
+    $("status").textContent = "Connected to TV";
+    showError(null);
+  } catch (e) {
+    $("status").textContent = "Not connected";
+    showError(e);
+  }
+}
+
+async function op(body) {
+  busy = true;
+  try {
+    shelves = (await api("/api/op", body)).shelves;
+    render();
+    showError(null);
+    return true;
+  } catch (e) {
+    showError(e);
+    return false;
+  } finally {
+    busy = false;
+  }
+}
+
+/** A film's poster, or a same-size placeholder with its title when there's no art or the art fails to load. */
+function poster(film) {
+  const placeholder = () => el("div", { className: "noposter" }, el("span", { textContent: film.title || "" }));
+  if (!film.poster) return placeholder();
+  const img = el("img", { src: film.poster, alt: "", loading: "lazy" });
+  img.onerror = () => img.replaceWith(placeholder());
+  return img;
+}
+
+const shelvesWith = (film) => shelves.filter((s) => s.films.some((f) => f.jwId === film.jwId));
+
+function render() {
+  renderResults();
+  $("shelves").replaceChildren(...shelves.map((shelf, i) => {
+    const head = el("div", {},
+      el("div", { className: "shelf-name", textContent: shelf.name }),
+      el("div", { className: "shelf-tools" },
+        el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+          const name = prompt("Shelf name", shelf.name);
+          if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
+        } }),
+        el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
+          if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
+        } }),
+      ));
+    const films = shelf.films.length
+      ? el("div", { className: "films" }, ...shelf.films.map((f, j) => el("div", { className: "film" },
+          poster(f),
+          el("div", { className: "name", textContent: f.title }),
+          el("div", { className: "tools" },
+            el("button", { className: "ghost", textContent: "✕ Remove",
+              onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
+          ))))
+      : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." });
+    return el("div", { className: "shelf" }, head, films);
+  }));
+}
+
+function renderResults() {
+  $("results").replaceChildren(...results.map((film) => {
+    const on = shelvesWith(film).length;
+    return el("button", { className: "result", onclick: () => openSheet(film) },
+      el("div", { className: "poster" }, poster(film), ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
+      el("div", { className: "title", textContent: film.title }),
+      el("div", { className: "year", textContent: film.year || "" }));
+  }));
+}
+
+// Search as you type, ignoring answers that arrive after a newer search started.
+let searchTimer, searchSeq = 0;
+$("q").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 350);
+});
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { clearTimeout(searchTimer); search(); $("q").blur(); }
+});
+
+async function search() {
+  const q = $("q").value.trim();
+  const seq = ++searchSeq;
+  if (!q) { results = []; renderResults(); return; }
+  try {
+    const found = await api("/api/search?q=" + encodeURIComponent(q));
+    if (seq !== searchSeq) return;
+    results = found;
+    renderResults();
+    if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: "No films found." }));
+  } catch (err) { showError(err); }
+}
+
+function openSheet(film) {
+  $("q").blur();
+  const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
+  const draw = () => {
+    const choices = shelves.map((shelf) => {
+      const on = shelf.films.some((f) => f.jwId === film.jwId);
+      return el("button", {
+        className: on ? "ghost on" : "",
+        onclick: async () => {
+          if (on) {
+            if (await op({ op: "removeFilm", shelf: shelf.id, jwId: film.jwId })) {
+              toast(`Removed ${film.title} from ${shelf.name}`);
+              draw();
+            }
+            return;
+          }
+          if (await op({ op: "addFilm", shelf: shelf.id, film })) {
+            toast(`Added ${film.title} to ${shelf.name}`);
+            close();
+          }
+        },
+      }, el("span", { textContent: shelf.name }), el("span", { textContent: on ? "✓ On shelf" : "Add" }));
+    });
+    const newShelf = el("button", { className: "ghost", onclick: async () => {
+      const name = prompt("New shelf name");
+      if (!name || !name.trim()) return;
+      if (await op({ op: "addShelf", name })) {
+        const shelf = shelves[shelves.length - 1];
+        if (await op({ op: "addFilm", shelf: shelf.id, film })) {
+          toast(`Added ${film.title} to ${shelf.name}`);
+          close();
+        }
+      }
+    } }, el("span", { textContent: "+ New shelf…" }), el("span"));
+    $("sheet").replaceChildren(
+      el("div", { className: "scrim", onclick: close }),
+      el("div", { className: "sheet" },
+        el("div", { className: "sheet-head" }, poster(film),
+          el("div", {}, el("div", { className: "t", textContent: film.title }), el("div", { className: "y", textContent: film.year || "" }))),
+        el("div", { className: "choices" }, ...choices, newShelf,
+          el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
+      ));
+  };
+  draw();
+  $("sheet").hidden = false;
+}
+
+$("newShelf").onclick = () => {
+  const name = prompt("New shelf name");
+  if (name && name.trim()) op({ op: "addShelf", name });
+};
+
+$("backup").href = "/api/export?k=" + encodeURIComponent(key);
+
+load();
+// Pick up edits made on the TV.
+setInterval(() => { if (!busy && document.visibilityState === "visible") load(); }, 5000);
+</script>
+</body>
+</html>

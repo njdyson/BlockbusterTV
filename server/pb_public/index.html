@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A143C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blockbuster">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>BlockbusterTV</title>
+<style>
+  :root {
+    --navy: #0A143C; --blue: #102E8C; --shelf: #1C2550; --yellow: #FFCC00;
+    --text: #FFFFFF; --muted: rgba(255,255,255,.65); --good: #4CAF50;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body {
+    margin: 0; background: var(--navy); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 0 16px calc(48px + env(safe-area-inset-bottom));
+  }
+  header {
+    position: sticky; top: 0; z-index: 2; background: var(--navy);
+    padding: calc(14px + env(safe-area-inset-top)) 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .logo { background: var(--yellow); color: var(--navy); font-weight: 900; letter-spacing: .5px;
+          padding: 3px 10px; border-radius: 5px; }
+  .logo + b { font-weight: 900; }
+  #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  h2 { font-size: 13px; letter-spacing: 2px; color: var(--yellow); margin: 22px 0 8px; }
+  input[type=search], input[type=email], input[type=password] {
+    width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 10px;
+    border: 2px solid transparent; background: #fff; color: #111;
+  }
+  input:focus { outline: none; border-color: var(--yellow); }
+  button {
+    font: inherit; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer;
+    background: var(--yellow); color: var(--navy); font-weight: 700;
+  }
+  button.ghost { background: rgba(255,255,255,.12); color: var(--text); font-weight: 600; }
+  button.small { padding: 6px 9px; font-size: 14px; }
+  button:disabled { opacity: .4; }
+  .card { background: var(--shelf); border-radius: 12px; padding: 16px; margin-top: 12px; }
+  .stack { display: grid; gap: 10px; }
+  .muted { color: var(--muted); font-size: 14px; }
+
+  /* Search results: a grid of posters, tap one to choose a shelf. minmax(0, …) stops
+     long titles widening the page. */
+  .results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .result { all: unset; cursor: pointer; display: block; width: 100%; min-width: 0; -webkit-tap-highlight-color: transparent; }
+  .result .poster { position: relative; }
+  .result img, .result .noposter { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+  .result .title { font-weight: 700; font-size: 13px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result .year { color: var(--muted); font-size: 12px; }
+  .badge { position: absolute; top: 6px; right: 6px; background: var(--good); color: #fff; border-radius: 999px;
+           font-size: 11px; font-weight: 700; padding: 2px 7px; }
+
+  .shelf { background: var(--shelf); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .shelf-name { font-weight: 800; font-size: 18px; overflow-wrap: anywhere; }
+  .shelf-tools { display: flex; gap: 6px; margin-top: 8px; }
+  .films { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; scroll-snap-type: x proximity; }
+  .film { flex: none; width: 96px; scroll-snap-align: start; position: relative; }
+  .film img, .film .noposter { width: 96px; height: 144px; object-fit: cover; border-radius: 5px; background: #000; display: block; }
+  /* Stand-in for missing or broken art: same size as a poster, title on a store-blue case
+     with yellow label stripes. Background is !important to beat the per-context #000. */
+  .noposter { display: flex !important; align-items: center; justify-content: center; text-align: center; position: relative; overflow: hidden; min-height: 0;
+    padding: 20px 8px; font-size: 13px; font-weight: 700; line-height: 1.2; color: var(--text);
+    background: linear-gradient(160deg, var(--blue), var(--navy) 85%) !important; }
+  .noposter::before, .noposter::after { content: ""; position: absolute; left: 0; right: 0; height: 4%; background: var(--yellow); }
+  .noposter::before { top: 6%; }
+  .noposter::after { bottom: 6%; }
+  .noposter span { width: 100%; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .sheet-head .noposter { font-size: 8px; padding: 8px 3px; }
+  .film .name { font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .film .tools { display: flex; gap: 4px; margin-top: 4px; }
+  .film .tools button { flex: 1; padding: 4px 0; font-size: 13px; }
+  .owned { position: absolute; top: 4px; left: 4px; background: #e00; color: #fff; font-size: 10px; font-weight: 700;
+           border-radius: 4px; padding: 1px 5px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+  .error { background: #5c1a1a; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+  .tv { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); }
+  .tv:first-child { border-top: 0; }
+  .tv .grow { flex: 1; min-width: 0; }
+  footer { margin-top: 24px; font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  footer a { color: var(--yellow); }
+
+  /* Bottom sheet: "Add <film> to…" */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 17; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 18; background: var(--shelf);
+    border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 80vh; overflow-y: auto; box-shadow: 0 -8px 30px rgba(0,0,0,.4);
+  }
+  .sheet-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .sheet-head img, .sheet-head .noposter { width: 48px; height: 72px; border-radius: 5px; object-fit: cover; flex: none; background: #000; }
+  .sheet-head .t { font-weight: 800; font-size: 18px; line-height: 1.2; }
+  .sheet-head .y { color: var(--muted); font-size: 14px; }
+  .choices { display: grid; gap: 8px; }
+  .choices button { width: 100%; text-align: left; padding: 14px 16px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+  .choices button.on { background: rgba(76,175,80,.25); color: #fff; }
+  /* Search: people, filters, overview */
+  .search-row { display: flex; gap: 8px; }
+  .search-field { position: relative; flex: 1; min-width: 0; }
+  .search-field input { width: 100%; padding-right: 44px; }
+  input[type=search]::-webkit-search-cancel-button { display: none; }
+  .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; padding: 0;
+               border-radius: 50%; background: #d9dce6; color: #333; font-size: 15px; font-weight: 800; line-height: 30px; }
+  /* People matching the search: one compact row. */
+  #people { flex-wrap: nowrap; overflow-x: auto; gap: 6px; margin-top: 8px; scrollbar-width: none; }
+  #people::-webkit-scrollbar { display: none; }
+  #people button.chip { flex: none; padding: 5px 10px; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chips:empty { display: none; }
+  button.chip { background: rgba(255,255,255,.12); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 600; }
+  button.chip.on { background: var(--yellow); color: var(--navy); }
+  button.chip.person { background: #2d3a7a; }
+  .group-label { font-size: 12px; letter-spacing: 1.5px; color: var(--muted); margin: 12px 0 6px; font-weight: 700; }
+  .group-label:first-child { margin-top: 0; }
+  #filters .chips { margin-top: 0; }
+  .rating { position: absolute; bottom: 6px; left: 6px; background: var(--yellow); color: var(--navy); border-radius: 999px;
+            font-size: 11px; font-weight: 800; padding: 1px 6px; }
+  .shelves-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 8px; }
+  .shelves-head h2 { margin: 0; }
+  .seg { display: flex; background: rgba(255,255,255,.1); border-radius: 8px; padding: 3px; }
+  .seg button { background: transparent; color: var(--text); padding: 5px 10px; font-size: 13px; font-weight: 600; }
+  .seg button.on { background: var(--yellow); color: var(--navy); }
+  .overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .tile { all: unset; cursor: pointer; background: var(--shelf); border-radius: 10px; padding: 8px; display: block; min-width: 0; }
+  .mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .mosaic img, .mosaic .noposter, .mosaic .blank { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 3px; background: #000; display: block; }
+  .mosaic .noposter { font-size: 9px; padding: 10px 3px; }
+  .mosaic .blank { background: rgba(255,255,255,.05); }
+  .tile .tname { font-weight: 800; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile .tcount { color: var(--muted); font-size: 12px; }
+  /* Sets (box sets) and shuffle */
+  .boxset { position: relative; }
+  .boxset img, .boxset .noposter { box-shadow: 4px -4px 0 #3a4170, 8px -8px 0 #262c55; margin: 8px 8px 0 0; width: 88px !important; height: 132px !important; }
+  .setcount { position: absolute; top: 12px; left: 4px; background: var(--yellow); color: var(--navy); font-size: 10px; font-weight: 800;
+              border-radius: 4px; padding: 1px 5px; }
+  .film .name.setname { font-weight: 800; }
+  .setpanel { background: rgba(0,0,0,.25); border-radius: 10px; padding: 10px; margin-top: 8px; }
+  .setpanel .shelf-name { font-size: 16px; }
+  .pick { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff;
+          background: rgba(0,0,0,.5); color: var(--navy); font-weight: 900; display: flex; align-items: center; justify-content: center; }
+  .pick.on { background: var(--yellow); border-color: var(--yellow); }
+  .selectbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button.chip.toggle.on { background: var(--good); color: #fff; }
+  /* Film page */
+  #filmView { position: fixed; inset: 0; z-index: 15; background: var(--navy); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .fv-hero { position: relative; height: 230px; background: #000 center / cover no-repeat; }
+  .fv-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(10,20,60,.1), var(--navy)); }
+  .fv-close { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 12px; z-index: 16; width: 40px; height: 40px;
+              border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 20px; padding: 0; }
+  .fv-body { padding: 0 16px calc(40px + env(safe-area-inset-bottom)); margin-top: -110px; position: relative; z-index: 1; }
+  .fv-top { display: flex; gap: 14px; align-items: flex-end; }
+  .fv-top img, .fv-top .noposter { width: 110px; height: 165px; border-radius: 8px; object-fit: cover; flex: none; box-shadow: 0 8px 24px rgba(0,0,0,.5); background: #000; }
+  .fv-title { font-size: 24px; font-weight: 800; line-height: 1.15; }
+  .fv-meta { color: var(--yellow); font-size: 14px; margin-top: 6px; }
+  .fv-genres { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .fv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .fv-actions a, .fv-actions button { text-decoration: none; }
+  a.btn { display: inline-block; border-radius: 8px; padding: 10px 14px; font-weight: 700; background: rgba(255,255,255,.12); color: var(--text); font-size: 15px; }
+  .fv-synopsis { margin-top: 16px; line-height: 1.5; }
+  .fv-onshelves { margin-top: 10px; }
+  .offer { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); color: var(--text); text-decoration: none; }
+  .offer:first-child { border-top: 0; }
+  .offer img { width: 36px; height: 36px; border-radius: 8px; flex: none; background: #000; }
+  .offer .grow { flex: 1; min-width: 0; }
+  .offer .what { color: var(--muted); font-size: 13px; }
+  .offer .go { color: var(--yellow); font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .fold > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; margin: 22px 0 8px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary h2 { margin: 0; }
+  .fold > summary .muted { flex: 1; font-size: 13px; }
+  .fold > summary::after { content: "›"; color: var(--yellow); font-weight: 700; font-size: 20px; line-height: 1; transition: transform .15s; }
+  .fold[open] > summary::after { transform: rotate(90deg); }
+  .fold > .card { margin-top: 0; }
+  .people { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .person { all: unset; cursor: pointer; flex: none; background: var(--shelf); border-radius: 10px; padding: 8px 12px; max-width: 160px; }
+  .person b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .person span { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .add-quick { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border-radius: 50%; padding: 0;
+               background: var(--yellow); color: var(--navy); font-size: 20px; font-weight: 900; line-height: 30px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .result .badge { right: auto; left: 6px; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
+    z-index: 20; box-shadow: 0 6px 20px rgba(0,0,0,.35); max-width: calc(100% - 32px); text-align: center;
+  }
+</style>
+</head>
+<body>
+<header><span class="logo">BLOCKBUSTER</span><b>TV</b><span id="status"></span></header>
+
+<!-- Signed out -->
+<section id="loginView" hidden>
+  <form class="card stack" id="loginForm">
+    <div style="font-weight:800;font-size:20px">Sign in</div>
+    <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+    <button>Sign in</button>
+    <div class="muted">Accounts are set up by the person who runs this BlockbusterTV.</div>
+  </form>
+</section>
+
+<!-- Signed in -->
+<section id="mainView" hidden>
+  <div id="pairCard"></div>
+
+  <h2>ADD A FILM</h2>
+  <div class="search-row">
+    <div class="search-field">
+      <input type="search" id="q" placeholder="Film, actor or director" autocomplete="off" autocorrect="off" enterkeyhint="search">
+      <button class="clear-btn" id="clearSearch" title="Clear" hidden>✕</button>
+    </div>
+    <button class="ghost" id="filtersBtn">Filters</button>
+  </div>
+  <div class="card" id="filters" hidden></div>
+  <div class="chips" id="people"></div>
+  <div class="chips" id="active"></div>
+  <div class="results" id="results"></div>
+
+  <div class="shelves-head">
+    <h2>YOUR SHELVES <span style="color:var(--muted);letter-spacing:0;font-weight:400">· shuffled</span></h2>
+    <div class="seg"><button id="viewShelves">Shelves</button><button id="viewOverview">Overview</button></div>
+  </div>
+  <div id="shelves"></div>
+  <button class="ghost" id="newShelf">+ New shelf</button>
+
+  <h2>YOUR TVS</h2>
+  <div class="card" id="tvs"></div>
+
+  <footer>
+    <span id="who"></span>
+    <a href="#" id="backup">Download backup</a>
+    <a href="#" id="signOut">Sign out</a>
+  </footer>
+</section>
+
+<div id="error"></div>
+<div id="filmView" hidden></div>
+<div id="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+const TOKEN = "bbtv_token";
+let token = localStorage.getItem(TOKEN) || "";
+let library = { shelves: [], owned: [] };
+let results = [];
+let busy = false;
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...children) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+};
+
+class AuthError extends Error {}
+
+async function api(path, body, method) {
+  const res = await fetch(path, {
+    method: method || (body ? "POST" : "GET"),
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: token } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new AuthError(data.message || "Please sign in again.");
+  if (!res.ok) throw new Error(data.message || `Something went wrong (${res.status}).`);
+  return data;
+}
+
+function showError(e) {
+  if (e instanceof AuthError) return signedOut();
+  $("error").replaceChildren(e ? el("div", { className: "error", textContent: String(e.message || e) }) : "");
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 2400);
+}
+
+// --- Signing in -------------------------------------------------------------
+
+function signedOut() {
+  token = "";
+  localStorage.removeItem(TOKEN);
+  $("mainView").hidden = true;
+  $("loginView").hidden = false;
+  $("status").textContent = "";
+}
+
+$("loginForm").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const auth = await api("/api/collections/users/auth-with-password", { identity: $("email").value, password: $("password").value });
+    token = auth.token;
+    localStorage.setItem(TOKEN, token);
+    showError(null);
+    start(auth.record);
+  } catch (err) {
+    $("error").replaceChildren(el("div", { className: "error", textContent: "That email and password didn't match." }));
+  }
+};
+
+$("signOut").onclick = (e) => { e.preventDefault(); signedOut(); };
+
+async function start(user) {
+  // A reload while a film page was open: start from the shelves.
+  if (location.hash.startsWith("#film=")) history.replaceState(null, "", "/");
+  renderFilters();
+  $("loginView").hidden = true;
+  $("mainView").hidden = false;
+  $("who").textContent = "Signed in as " + user.email;
+  await Promise.all([load(), loadTvs(), showPairing()]);
+}
+
+// --- Library ----------------------------------------------------------------
+
+async function load() {
+  try {
+    const data = await api("/api/bbtv/library");
+    // Only redraw when something changed, so polling doesn't reset scroll positions.
+    if (JSON.stringify(data) !== JSON.stringify(library)) {
+      library = data;
+      render();
+    }
+    $("status").textContent = "Saved";
+    showError(null);
+  } catch (e) {
+    $("status").textContent = "Offline";
+    showError(e);
+  }
+}
+
+async function op(body) {
+  busy = true;
+  try {
+    const data = await api("/api/bbtv/op", body);
+    const created = data.created;
+    delete data.created;
+    library = data;
+    render();
+    showError(null);
+    return created || true;
+  } catch (e) {
+    showError(e);
+    return false;
+  } finally {
+    busy = false;
+  }
+}
+
+/** A film's poster, or a same-size placeholder with its title when there's no art or the art fails to load. */
+function poster(film) {
+  const placeholder = () => el("div", { className: "noposter" }, el("span", { textContent: film.title || "" }));
+  if (!film.poster) return placeholder();
+  const img = el("img", { src: film.poster, alt: "", loading: "lazy" });
+  img.onerror = () => img.replaceWith(placeholder());
+  return img;
+}
+
+let view = localStorage.getItem("bbtv_view") || "shelves";
+
+function setView(next, scrollToShelf) {
+  view = next;
+  localStorage.setItem("bbtv_view", view);
+  render();
+  if (scrollToShelf) $("shelf-" + scrollToShelf)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("viewShelves").onclick = () => setView("shelves");
+$("viewOverview").onclick = () => setView("overview");
+
+/** Zoomed out: each shelf as a tile of its first four posters. Tap one to open it. */
+function renderOverview() {
+  const shelves = shuffledShelves();
+  $("shelves").replaceChildren(shelves.length
+    ? el("div", { className: "overview" }, ...shelves.map((shelf) => {
+        const four = displayItems(shelf).slice(0, 4).map((it) => it.type === "film" ? it.film : (it.films[0] || { title: it.set.name }));
+        const cells = [...four.map(poster), ...Array.from({ length: 4 - four.length }, () => el("div", { className: "blank" }))];
+        return el("button", { className: "tile", onclick: () => setView("shelves", shelf.id) },
+          el("div", { className: "mosaic" }, ...cells),
+          el("div", { className: "tname", textContent: shelf.name }),
+          el("div", { className: "tcount", textContent: shelf.films.length === 1 ? "1 film" : `${shelf.films.length} films` }));
+      }))
+    : el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." }));
+}
+
+function render() {
+  renderResults();
+  // Keep an open film page in step (e.g. "On your shelves" after adding it).
+  if (!$("filmView").hidden && currentFilm) renderFilm(currentFilm.film, currentFilm.details);
+  $("viewShelves").classList.toggle("on", view === "shelves");
+  $("viewOverview").classList.toggle("on", view === "overview");
+  if (view === "overview") return renderOverview();
+  const shelves = shuffledShelves();
+  // Redrawing would reset each shelf's sideways scroll (e.g. while ticking films for a set): keep it.
+  const scroll = new Map([...document.querySelectorAll(".shelf")].map((node) => [node.id, [...node.querySelectorAll(".films")].map((row) => row.scrollLeft)]));
+  $("shelves").replaceChildren(...(shelves.length ? shelves.map((shelf) => renderShelf(shelf))
+    : [el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." })]));
+  for (const [id, lefts] of scroll) {
+    const rows = document.getElementById(id)?.querySelectorAll(".films") || [];
+    rows.forEach((row, i) => { row.scrollLeft = lefts[i] || 0; });
+  }
+}
+
+// --- Shelves, sets and shuffle ---------------------------------------------------
+
+// Shelves and the films on them are shown in a random order, new each time the app opens,
+// so browsing stays varied. Each item's place comes from its own ID, so adding or removing
+// one doesn't reshuffle the rest. Sets are the only fixed order: release date.
+const seed = Math.floor(Math.random() * 2 ** 31);
+
+function rank(key) {
+  let h = seed ^ 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  h = Math.imul(h ^ (h >>> 15), 2246822507);
+  return (h ^ (h >>> 13)) >>> 0;
+}
+
+const shuffledShelves = () => [...library.shelves].sort((a, b) => rank(a.id) - rank(b.id));
+
+/** A shelf's items in this session's random order. */
+const displayItems = (shelf) => shelfItems(shelf).sort((a, b) => rank(shelf.id + "/" + a.key) - rank(shelf.id + "/" + b.key));
+
+/**
+ * A shelf's items: films, with each set's films folded into one item (at the position of
+ * its first member), in release order.
+ */
+function shelfItems(shelf) {
+  const setOf = new Map();
+  for (const set of shelf.sets || []) for (const id of set.films) setOf.set(id, set);
+  const byId = new Map(shelf.films.map((f) => [f.jwId, f]));
+  const seen = new Set();
+  const items = [];
+  for (const film of shelf.films) {
+    const set = setOf.get(film.jwId);
+    if (!set) items.push({ type: "film", film, key: film.jwId });
+    else if (!seen.has(set.id)) {
+      seen.add(set.id);
+      const films = set.films.map((id) => byId.get(id)).filter(Boolean)
+        .sort((a, b) => (a.year || 9999) - (b.year || 9999));
+      items.push({ type: "set", set, films, key: "set:" + set.id });
+    }
+  }
+  return items;
+}
+
+let selecting = null; // { shelf: id, chosen: Set of jwIds } while choosing films for a set
+let openSet = null;   // id of the set whose panel is open
+
+function renderShelf(shelf) {
+  const items = displayItems(shelf);
+  const picking = selecting && selecting.shelf === shelf.id;
+  const head = el("div", {},
+    el("div", { className: "shelf-name", textContent: shelf.name }),
+    el("div", { className: "shelf-tools" },
+      el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+        const name = prompt("Shelf name", shelf.name);
+        if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
+      } }),
+      el("button", { className: "ghost small", textContent: picking ? "Cancel" : "Make a set", disabled: shelf.films.length < 1,
+        onclick: () => { selecting = picking ? null : { shelf: shelf.id, chosen: new Set() }; render(); } }),
+      el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
+        if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
+      } }),
+    ));
+
+  const tile = (item, j) => {
+    if (item.type === "set") {
+      const set = item.set;
+      return el("div", { className: "film" },
+        el("button", { className: "result boxset", onclick: () => { openSet = openSet === set.id ? null : set.id; render(); } },
+          poster(item.films[0] || { title: set.name }),
+          el("span", { className: "setcount", textContent: `${item.films.length} FILMS` })),
+        el("div", { className: "name setname", textContent: set.name }),
+        el("div", { className: "tools" },
+          el("button", { className: "ghost", textContent: openSet === set.id ? "Close" : "Open", onclick: () => { openSet = openSet === set.id ? null : set.id; render(); } }),
+        ));
+    }
+    const f = item.film;
+    const chosen = picking && selecting.chosen.has(f.jwId);
+    return el("div", { className: "film" },
+      picking
+        ? el("button", { className: "result", style: "position:relative", onclick: () => {
+            selecting.chosen.has(f.jwId) ? selecting.chosen.delete(f.jwId) : selecting.chosen.add(f.jwId);
+            render();
+          } }, poster(f), el("span", { className: "pick" + (chosen ? " on" : ""), textContent: chosen ? "✓" : "" }))
+        : el("button", { className: "result", onclick: () => openFilm(f) }, poster(f)),
+      ...(library.owned.includes(f.jwId) ? [el("span", { className: "owned", textContent: "OWNED" })] : []),
+      el("div", { className: "name", textContent: f.title }),
+      picking ? "" : el("div", { className: "tools" },
+        el("button", { className: "ghost", textContent: "✕ Remove",
+          onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
+      ));
+  };
+
+  const parts = [head];
+  parts.push(items.length
+    ? el("div", { className: "films" }, ...items.map(tile))
+    : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." }));
+
+  // Choosing films for a set.
+  if (picking) {
+    const n = selecting.chosen.size;
+    parts.push(el("div", { className: "selectbar" },
+      el("div", { className: "muted", style: "width:100%", textContent: n ? `${n} chosen` : "Tap the films to put in a set." }),
+      el("button", { className: "small", textContent: "Make a new set", disabled: n < 1, onclick: async () => {
+        const name = prompt("Name the set", "Box set");
+        if (!name || !name.trim()) return;
+        const films = shelf.films.map((f) => f.jwId).filter((id) => selecting.chosen.has(id));
+        selecting = null;
+        await op({ op: "createSet", shelf: shelf.id, name, films });
+      } }),
+      ...(shelf.sets || []).map((set) => el("button", { className: "ghost small", textContent: `Add to ${set.name}`, disabled: n < 1, onclick: async () => {
+        const ids = shelf.films.map((f) => f.jwId).filter((id) => selecting.chosen.has(id));
+        selecting = null;
+        for (const jwId of ids) await op({ op: "addToSet", shelf: shelf.id, set: set.id, jwId });
+      } }))));
+  }
+
+  // An open set: its films in order, to rearrange, take out or remove.
+  const open = items.find((it) => it.type === "set" && it.set.id === openSet);
+  if (open) {
+    const set = open.set;
+    parts.push(el("div", { className: "setpanel" },
+      el("div", { className: "shelf-name", textContent: `${set.name} · ${open.films.length} films` + (open.films[0]?.year ? ` · from ${open.films[0].year}` : "") }),
+      el("div", { className: "shelf-tools" },
+        el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
+          const name = prompt("Set name", set.name);
+          if (name && name.trim()) op({ op: "renameSet", shelf: shelf.id, set: set.id, name });
+        } }),
+        el("button", { className: "ghost small", textContent: "Ungroup", onclick: () => { openSet = null; op({ op: "ungroupSet", shelf: shelf.id, set: set.id }); } }),
+        el("button", { className: "ghost small", textContent: "Close", onclick: () => { openSet = null; render(); } })),
+      el("div", { className: "films" }, ...open.films.map((f, k) => el("div", { className: "film" },
+        el("button", { className: "result", onclick: () => openFilm(f) }, poster(f)),
+        el("div", { className: "name", textContent: f.title }),
+        el("div", { className: "tools" },
+          el("button", { className: "ghost", textContent: "⤴ Take out", title: "Take out of the set (it stays on the shelf)",
+            onclick: () => op({ op: "removeFromSet", shelf: shelf.id, jwId: f.jwId }) }),
+        )))),
+      el("div", { className: "muted", textContent: "Sets play in release order. Take out keeps the film on the shelf." }),
+    ));
+  }
+  return el("div", { className: "shelf", id: "shelf-" + shelf.id }, ...parts);
+}
+
+// --- Search and add ---------------------------------------------------------
+
+const shelvesWith = (film) => library.shelves.filter((s) => s.films.some((f) => f.jwId === film.jwId));
+
+function renderResults() {
+  $("results").replaceChildren(...results.map((film) => {
+    const on = shelvesWith(film).length;
+    // Tap the poster for the film page; + adds it to a shelf straight away.
+    return el("div", { style: "position:relative; min-width:0" },
+      el("button", { className: "result", onclick: () => openFilm(film) },
+        el("div", { className: "poster" }, poster(film),
+          ...(film.rating ? [el("span", { className: "rating", textContent: film.rating.toFixed(1) })] : []),
+          ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
+        el("div", { className: "title", textContent: film.title }),
+        el("div", { className: "year", textContent: film.year || "" })),
+      el("button", { className: "add-quick", textContent: "+", title: "Add to a shelf", onclick: () => openSheet(film) }));
+  }));
+}
+
+// --- Advanced search: people and filters ---------------------------------------
+
+const GENRES = [["act", "Action"], ["cmy", "Comedy"], ["drm", "Drama"], ["scf", "Sci-Fi"], ["trl", "Thriller"],
+  ["hrr", "Horror"], ["rma", "Romance"], ["fml", "Family"], ["ani", "Animation"], ["crm", "Crime"],
+  ["fnt", "Fantasy"], ["doc", "Documentary"], ["war", "War"], ["wsn", "Western"], ["msc", "Music"],
+  ["hst", "History"], ["spt", "Sport"]];
+const DECADES = [["", "Any"], ["1950", "50s"], ["1960", "60s"], ["1970", "70s"], ["1980", "80s"],
+  ["1990", "90s"], ["2000", "00s"], ["2010", "10s"], ["2020", "20s"]];
+const RATINGS = [["", "Any"], ["6", "6+"], ["7", "7+"], ["8", "8+"]];
+const SERVICES = [["netflix", "Netflix"], ["prime", "Prime Video"], ["disney", "Disney+"], ["appletv", "Apple TV"],
+  ["iplayer", "iPlayer"], ["itvx", "ITVX"], ["channel4", "Channel 4"], ["now", "NOW"], ["plex", "Plex"]];
+const SORTS = [["popular", "Popular"], ["rating", "Top rated"], ["newest", "Newest"], ["az", "A–Z"]];
+
+const NO_FILTERS = { genres: [], decade: "", minRating: "", services: [], sort: "popular", person: null };
+let filters = { ...NO_FILTERS, genres: [], services: [] };
+
+const filterCount = () =>
+  filters.genres.length + filters.services.length + (filters.decade ? 1 : 0) + (filters.minRating ? 1 : 0) + (filters.sort !== "popular" ? 1 : 0);
+
+function chipGroup(label, options, isOn, toggle) {
+  return [
+    el("div", { className: "group-label", textContent: label }),
+    el("div", { className: "chips" }, ...options.map(([value, text]) =>
+      el("button", { className: "chip" + (isOn(value) ? " on" : ""), textContent: text, onclick: () => { toggle(value); filtersChanged(); } }))),
+  ];
+}
+
+const toggleIn = (list, value) => list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+
+function renderFilters() {
+  $("filtersBtn").textContent = filterCount() ? `Filters (${filterCount()})` : "Filters";
+  $("filters").replaceChildren(
+    ...chipGroup("GENRE", GENRES, (v) => filters.genres.includes(v), (v) => { filters.genres = toggleIn(filters.genres, v); }),
+    ...chipGroup("DECADE", DECADES, (v) => filters.decade === v, (v) => { filters.decade = v; }),
+    ...chipGroup("IMDB RATING", RATINGS, (v) => filters.minRating === v, (v) => { filters.minRating = v; }),
+    ...chipGroup("STREAMING ON", SERVICES, (v) => filters.services.includes(v), (v) => { filters.services = toggleIn(filters.services, v); }),
+    ...chipGroup("SORT BY", SORTS, (v) => filters.sort === v, (v) => { filters.sort = v; }),
+    el("div", { className: "chips", style: "margin-top:14px" },
+      el("button", { className: "ghost small", textContent: "Clear filters", onclick: () => {
+        filters = { ...NO_FILTERS, genres: [], services: [], person: filters.person };
+        filtersChanged();
+      } }),
+      el("button", { className: "small", textContent: "Done", onclick: () => { $("filters").hidden = true; renderFilters(); } })),
+  );
+  // What's active, shown under the search box even when the panel is closed.
+  const active = [];
+  if (filters.person) {
+    active.push(el("button", { className: "chip on", textContent: `With ${filters.person.name}  ✕`, onclick: () => { filters.person = null; filtersChanged(); } }));
+  }
+  if (filterCount() && $("filters").hidden) {
+    active.push(el("button", { className: "chip", textContent: `${filterCount()} filter${filterCount() > 1 ? "s" : ""}  ✕`, onclick: () => {
+      filters = { ...NO_FILTERS, genres: [], services: [], person: filters.person };
+      filtersChanged();
+    } }));
+  }
+  $("active").replaceChildren(...active);
+}
+
+function filtersChanged() {
+  updateClear();
+  renderFilters();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 250);
+}
+
+$("filtersBtn").onclick = () => {
+  $("filters").hidden = !$("filters").hidden;
+  renderFilters();
+};
+
+// Search as you type, ignoring answers that arrive after a newer search started.
+let searchTimer, searchSeq = 0;
+$("q").addEventListener("input", () => {
+  updateClear();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 350);
+});
+
+// ✕ in the box: clears the text, the chosen person and the results (filters stay).
+function updateClear() { $("clearSearch").hidden = !$("q").value && !filters.person; }
+$("clearSearch").onclick = () => {
+  $("q").value = "";
+  filters.person = null;
+  filtersChanged();
+  $("q").focus();
+};
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { clearTimeout(searchTimer); search(); $("q").blur(); }
+});
+
+async function search() {
+  const q = $("q").value.trim();
+  const seq = ++searchSeq;
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (filters.person) params.set("person", filters.person.id);
+  if (filters.genres.length) params.set("genres", filters.genres.join(","));
+  if (filters.decade) { params.set("yearMin", filters.decade); params.set("yearMax", String(+filters.decade + 9)); }
+  if (filters.minRating) params.set("minRating", filters.minRating);
+  if (filters.services.length) params.set("services", filters.services.join(","));
+  if (filters.sort !== "popular") params.set("sort", filters.sort);
+  const browsing = filters.person || filterCount() > 0;
+  if (!q && !browsing) { results = []; renderResults(); $("people").replaceChildren(); return; }
+  try {
+    const [found, people] = await Promise.all([
+      api("/api/bbtv/search?" + params),
+      // Typing a name also offers matching actors and directors.
+      q.length >= 3 && !filters.person ? api("/api/bbtv/people?q=" + encodeURIComponent(q)) : Promise.resolve([]),
+    ]);
+    if (seq !== searchSeq) return;
+    results = found;
+    renderResults();
+    // Only people whose name contains every word typed, e.g. "nolan" but not "back to" → "Frédéric Back".
+    const plain = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const words = plain(q).split(/\s+/).filter(Boolean);
+    const matching = people
+      .filter((p) => words.every((w) => plain(p.name).split(/[\s.-]+/).some((part) => part.startsWith(w))))
+      .filter((p, i, all) => all.findIndex((o) => o.name === p.name) === i) // same name twice: keep the better known
+      .slice(0, 3);
+    $("people").replaceChildren(...matching.map((person) => el("button", {
+      className: "chip person",
+      textContent: "🎬 " + person.name,
+      onclick: () => {
+        filters.person = person;
+        $("q").value = "";
+        $("q").blur();
+        filtersChanged();
+      },
+    })));
+    if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: "No films found." }));
+  } catch (err) { showError(err); }
+}
+
+function openSheet(film) {
+  $("q").blur();
+  const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
+  const added = (shelf) => { toast(`Added ${film.title} to ${shelf.name}`); close(); };
+  const removed = (shelf) => { toast(`Removed ${film.title} from ${shelf.name}`); draw(); };
+  const draw = () => {
+    const choices = library.shelves.map((shelf) => {
+      const on = shelf.films.some((f) => f.jwId === film.jwId);
+      return el("button", {
+        className: on ? "ghost on" : "",
+        onclick: async () => {
+          if (on) { if (await op({ op: "removeFilm", shelf: shelf.id, jwId: film.jwId })) removed(shelf); }
+          else if (await op({ op: "addFilm", shelf: shelf.id, film })) added(shelf);
+        },
+      }, el("span", { textContent: shelf.name }), el("span", { textContent: on ? "✓ On shelf" : "Add" }));
+    });
+    const newShelf = el("button", { className: "ghost", onclick: async () => {
+      const name = prompt("New shelf name");
+      if (!name || !name.trim()) return;
+      const id = await op({ op: "addShelf", name });
+      if (id && await op({ op: "addFilm", shelf: id, film })) added(library.shelves.find((s) => s.id === id));
+    } }, el("span", { textContent: "+ New shelf…" }), el("span"));
+    $("sheet").replaceChildren(
+      el("div", { className: "scrim", onclick: close }),
+      el("div", { className: "sheet" },
+        el("div", { className: "sheet-head" }, poster(film),
+          el("div", {}, el("div", { className: "t", textContent: film.title }), el("div", { className: "y", textContent: film.year || "" }))),
+        el("div", { className: "choices" }, ...choices, newShelf,
+          el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
+      ));
+  };
+  draw();
+  $("sheet").hidden = false;
+}
+
+$("newShelf").onclick = () => {
+  const name = prompt("New shelf name");
+  if (name && name.trim()) op({ op: "addShelf", name });
+};
+
+// --- TVs --------------------------------------------------------------------
+
+// The TV's "Link to your account" QR code opens this app at /#pair=CODE.
+async function showPairing() {
+  const code = new URLSearchParams(location.hash.slice(1)).get("pair");
+  if (!code) return $("pairCard").replaceChildren();
+  const clear = () => { history.replaceState(null, "", "/"); $("pairCard").replaceChildren(); };
+  try {
+    const info = await api("/api/bbtv/pair/info?code=" + encodeURIComponent(code));
+    $("pairCard").replaceChildren(el("div", { className: "card stack" },
+      el("div", { style: "font-weight:800;font-size:18px", textContent: `Link "${info.name}" to your account?` }),
+      el("div", { className: "muted", textContent: `Code ${code.toUpperCase()}. The TV will show your shelves, and edits on either will appear on both.` }),
+      el("button", { textContent: "Link this TV", onclick: async () => {
+        try {
+          await api("/api/bbtv/pair/approve", { code });
+          toast(`${info.name} is linked`);
+          clear();
+          loadTvs();
+        } catch (e) { showError(e); }
+      } }),
+      el("button", { className: "ghost", textContent: "Not now", onclick: clear })));
+  } catch (e) {
+    $("pairCard").replaceChildren(el("div", { className: "error", textContent: e.message }));
+    history.replaceState(null, "", "/");
+  }
+}
+window.addEventListener("hashchange", showPairing);
+
+async function loadTvs() {
+  try {
+    const tvs = await api("/api/bbtv/devices");
+    $("tvs").replaceChildren(...(tvs.length ? tvs.map((tv) => el("div", { className: "tv" },
+      el("div", { className: "grow" },
+        el("div", { style: "font-weight:700", textContent: tv.name || "TV" }),
+        el("div", { className: "muted", textContent: tv.lastSeen ? "Last seen " + new Date(tv.lastSeen.replace(" ", "T")).toLocaleString() : "" })),
+      el("button", { className: "ghost small", textContent: "Unlink", onclick: async () => {
+        if (!confirm(`Unlink ${tv.name}? It keeps its current shelves but stops syncing.`)) return;
+        try { await api("/api/bbtv/devices/remove", { id: tv.id }); loadTvs(); } catch (e) { showError(e); }
+      } }),
+    )) : [el("div", { className: "muted", textContent: "No TVs linked yet. On the TV, open Settings > Link to your account, and scan the code." })]));
+  } catch (e) { showError(e); }
+}
+
+// --- Backup -----------------------------------------------------------------
+
+$("backup").onclick = (e) => {
+  e.preventDefault();
+  const blob = new Blob([JSON.stringify(library, null, 2)], { type: "application/json" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "blockbustertv-shelves.json" });
+  document.body.append(a);
+  a.click();
+  a.remove();
+};
+
+// --- Film page ---------------------------------------------------------------
+
+const minutes = (m) => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+const youtube = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+
+/** Opens the film page. [film] is what's already known (title, poster) so it shows at once. */
+function openFilm(film) {
+  if (!film || !film.jwId) return;
+  if (!(history.state && history.state.film)) history.pushState({ film: film.jwId }, "", "#film=" + film.jwId);
+  else history.replaceState({ film: film.jwId }, "", "#film=" + film.jwId);
+  renderFilm(film, null);
+  $("filmView").hidden = false;
+  $("filmView").scrollTop = 0;
+  document.body.style.overflow = "hidden";
+  api("/api/bbtv/film?id=" + encodeURIComponent(film.jwId))
+    .then((details) => { if (history.state && history.state.film === film.jwId) renderFilm({ ...film, ...details }, details); })
+    .catch((e) => showError(e));
+}
+
+function closeFilm() {
+  currentFilm = null;
+  $("filmView").hidden = true;
+  $("filmView").replaceChildren();
+  document.body.style.overflow = "";
+}
+
+// The phone's Back gesture closes the film page.
+window.addEventListener("popstate", () => { if (!(history.state && history.state.film)) closeFilm(); });
+
+/** "From £3.49 to rent, £7.99 to buy" for the collapsed Rent or buy header. */
+function storeSummary(store) {
+  const cheapest = (kind) => store.filter((o) => o.kind === kind && o.price)
+    .sort((a, b) => (a.priceValue || 0) - (b.priceValue || 0))[0];
+  const parts = [["rent", "to rent"], ["buy", "to buy"]].map(([kind, label]) => cheapest(kind) && `${cheapest(kind).price} ${label}`).filter(Boolean);
+  return parts.length ? "From " + parts.join(", ") : "Search YouTube";
+}
+
+const reviewRow = (name, what, url) => el("a", { className: "offer", href: url, target: "_blank", rel: "noopener" },
+  el("div", { className: "grow" }, el("div", { style: "font-weight:700", textContent: name }), el("div", { className: "what", textContent: what })),
+  el("span", { className: "go", textContent: "IMDb ›" }));
+
+let currentFilm = null;
+// Which film's Rent or buy list is open, so it stays open when the page redraws.
+let storeOpenFor = null;
+
+function renderFilm(film, details) {
+  currentFilm = { film, details };
+  const owned = library.owned.includes(film.jwId);
+  const shelves = shelvesWith(film);
+  const meta = details ? [
+    film.year, film.runtime && minutes(film.runtime), film.ageCertification,
+    film.rating && `IMDb ${film.rating.toFixed(1)}/10` + (film.votes ? ` (${Math.round(film.votes / 1000)}k votes)` : ""),
+  ].filter(Boolean).join("  ·  ") : (film.year || "");
+  const searchPerson = (person) => {
+    history.back();
+    filters.person = { id: person.id, name: person.name };
+    $("q").value = "";
+    filtersChanged();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const personTile = (person) => el("button", { className: "person", onclick: () => searchPerson(person) },
+    el("b", { textContent: person.name }), ...(person.character ? [el("span", { textContent: person.character })] : []));
+  const offerRow = (o) => el(o.url ? "a" : "div", { className: "offer", ...(o.url ? { href: o.url, target: "_blank", rel: "noopener" } : {}) },
+    o.icon ? el("img", { src: o.icon, alt: "" }) : el("div"),
+    el("div", { className: "grow" },
+      el("div", { style: "font-weight:700", textContent: o.provider }),
+      el("div", { className: "what", textContent: o.kind === "watch" ? (o.free ? "Free" : "With a subscription") : `${o.kind === "rent" ? "Rent" : "Buy"} ${o.price || ""}` })),
+    o.url ? el("span", { className: "go", textContent: "Open ›" }) : "");
+
+  const offers = details ? details.offers : [];
+  const watch = offers.filter((o) => o.kind === "watch");
+  const store = offers.filter((o) => o.kind !== "watch");
+  const title = `${film.title}${film.year ? " " + film.year : ""}`;
+
+  $("filmView").replaceChildren(
+    el("button", { className: "fv-close", textContent: "✕", title: "Close", onclick: () => history.back() }),
+    el("div", { className: "fv-hero", style: film.backdrop ? `background-image:url("${film.backdrop}")` : "" }),
+    el("div", { className: "fv-body" },
+      el("div", { className: "fv-top" }, poster(film),
+        el("div", {},
+          el("div", { className: "fv-title", textContent: film.title }),
+          el("div", { className: "fv-meta", textContent: meta }),
+          ...(details && film.genres.length ? [el("div", { className: "fv-genres", textContent: film.genres.join(" / ") })] : []))),
+      el("div", { className: "fv-actions" },
+        el("button", { textContent: shelves.length ? "+ Add to another shelf" : "+ Add to a shelf", onclick: () => openSheet(film) }),
+        el("a", { className: "btn", href: youtube(title + " trailer"), target: "_blank", rel: "noopener", textContent: "▶ Trailer" }),
+        el("button", { className: "chip toggle" + (owned ? " on" : ""), textContent: owned ? "✓ Owned on YouTube" : "Owned on YouTube?",
+          onclick: () => op({ op: "setOwned", jwId: film.jwId, owned: !owned }) })),
+      shelves.length ? el("div", { className: "muted fv-onshelves", textContent: "On your shelves: " + shelves.map((x) => x.name).join(", ") }) : "",
+      details ? el("div", { className: "fv-synopsis", textContent: film.synopsis || "No synopsis available." }) : el("div", { className: "muted fv-synopsis", textContent: "Loading…" }),
+      ...(details ? [
+        el("h2", { textContent: "WHERE TO WATCH" }),
+        el("div", { className: "card" },
+          ...(watch.length ? watch.map(offerRow) : [el("div", { className: "muted", textContent: "Not included with any streaming service in the UK right now." })])),
+        el("details", { className: "fold", open: storeOpenFor === film.jwId, ontoggle: (e) => { storeOpenFor = e.target.open ? film.jwId : null; } },
+          el("summary", {}, el("h2", { textContent: "RENT OR BUY" }), el("span", { className: "muted", textContent: storeSummary(store) })),
+          el("div", { className: "card" }, ...store.map(offerRow),
+            offerRow({ kind: "buy", provider: "YouTube", price: "(search)", url: youtube(title), icon: "https://images.justwatch.com/icon/113378150/s100/youtubefree.png" }))),
+        ...(film.imdbId ? [
+          el("h2", { textContent: "REVIEWS" }),
+          el("div", { className: "card" },
+            reviewRow("User reviews", "What IMDb users say", `https://www.imdb.com/title/${film.imdbId}/reviews/`),
+            reviewRow("Critic reviews", "Metacritic scores and quotes", `https://www.imdb.com/title/${film.imdbId}/criticreviews/`)),
+        ] : []),
+        ...(film.directors.length ? [el("h2", { textContent: film.directors.length > 1 ? "DIRECTORS" : "DIRECTOR" }), el("div", { className: "people" }, ...film.directors.map(personTile))] : []),
+        ...(film.cast.length ? [el("h2", { textContent: "CAST" }), el("div", { className: "people" }, ...film.cast.map(personTile))] : []),
+        el("div", { className: "muted", style: "margin-top:16px", textContent: "Tap a name to see their other films. Data from JustWatch, reviews on IMDb." }),
+      ] : []),
+    ));
+}
+
+// --- Start ------------------------------------------------------------------
+
+(async () => {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  if (!token) return signedOut();
+  try {
+    // Refreshing extends the sign-in, so regular use never has to sign in again.
+    const auth = await api("/api/collections/users/auth-refresh", {});
+    token = auth.token;
+    localStorage.setItem(TOKEN, token);
+    start(auth.record);
+  } catch (e) {
+    if (e instanceof AuthError) signedOut();
+    else { $("status").textContent = "Offline"; showError(e); }
+  }
+})();
+
+// Pick up edits made on a TV.
+setInterval(() => {
+  if (token && !busy && document.visibilityState === "visible" && !$("mainView").hidden) load();
+}, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+{
+  "collections": [
+    {
+      "name": "Saturday Night Classics",
+      "films": [
+        {
+          "imdbId": "tt0088763",
+          "jwId": "tm129449",
+          "title": "Back to the Future"
+        },
+        {
+          "imdbId": "tt0107290",
+          "jwId": "tm184504",
+          "title": "Jurassic Park"
+        },
+        {
+          "imdbId": "tt0087332",
+          "jwId": "tm176708",
+          "title": "Ghostbusters"
+        },
+        {
+          "imdbId": "tt0082971",
+          "jwId": "tm128131",
+          "title": "Raiders of the Lost Ark"
+        },
+        {
+          "imdbId": "tt0093779",
+          "jwId": "tm19438",
+          "title": "The Princess Bride"
+        },
+        {
+          "imdbId": "tt0425112",
+          "jwId": "tm66720",
+          "title": "Hot Fuzz"
+        },
+        {
+          "imdbId": "tt0133093",
+          "jwId": "tm10",
+          "title": "The Matrix"
+        },
+        {
+          "imdbId": "tt1375666",
+          "jwId": "tm92641",
+          "title": "Inception"
+        },
+        {
+          "imdbId": "tt0111161",
+          "jwId": "tm119206",
+          "title": "The Shawshank Redemption"
+        }
+      ]
+    },
+    {
+      "name": "Family Night",
+      "films": [
+        {
+          "imdbId": "tt4468740",
+          "jwId": "tm222161",
+          "title": "Paddington 2"
+        },
+        {
+          "imdbId": "tt0114709",
+          "jwId": "tm14765",
+          "title": "Toy Story"
+        },
+        {
+          "imdbId": "tt0327597",
+          "jwId": "tm137856",
+          "title": "Coraline"
+        },
+        {
+          "imdbId": "tt0245429",
+          "jwId": "tm48297",
+          "title": "Spirited Away"
+        },
+        {
+          "imdbId": "tt1049413",
+          "jwId": "tm153612",
+          "title": "Up"
+        },
+        {
+          "imdbId": "tt0126029",
+          "jwId": "tm50314",
+          "title": "Shrek"
+        },
+        {
+          "imdbId": "tt0083866",
+          "jwId": "tm56870",
+          "title": "E.T. the Extra-Terrestrial"
+        },
+        {
+          "imdbId": "tt0099785",
+          "jwId": "tm155184",
+          "title": "Home Alone"
+        }
+      ]
+    }
+  ]
+}

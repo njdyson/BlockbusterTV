@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.kotlin/
+# API keys live here, never in source control
+secrets.properties
+
+# PocketBase data (database, uploads, generated types) stays on the server
+server/pb_data/
