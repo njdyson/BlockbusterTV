@@ -34,6 +34,7 @@ import com.njdyson.blockbustertv.data.Shelf
 import com.njdyson.blockbustertv.data.ShelfFilm
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -50,6 +51,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.njdyson.blockbustertv.data.Film
+import com.njdyson.blockbustertv.data.FilmLauncher
 
 /**
  * The store floor: a preview of the focused film at the top ("the back of the box"),
@@ -59,6 +61,7 @@ import com.njdyson.blockbustertv.data.Film
 @Composable
 fun HomeScreen(app: AppState, onOpen: (Film) -> Unit, onSearch: () -> Unit, onPhoneEdit: () -> Unit, onSettings: () -> Unit) {
     val shelves by app.shelfStore.shelves.collectAsState()
+    val owned by app.shelfStore.owned.collectAsState()
     val focusedFilm = app.focusedKey?.substringAfter(':')?.let { app.films[it] }
     var menuFor by remember { mutableStateOf<Pair<Shelf, ShelfFilm>?>(null) }
     var copying by remember { mutableStateOf<ShelfFilm?>(null) }
@@ -118,6 +121,7 @@ fun HomeScreen(app: AppState, onOpen: (Film) -> Unit, onSearch: () -> Unit, onPh
                                     film = app.films[entry.jwId],
                                     fallbackTitle = entry.title,
                                     fallbackPoster = entry.poster,
+                                    ownedOnYouTube = entry.jwId in owned,
                                     requestFocus = wantsFocus,
                                     onFocused = { app.focusedKey = key },
                                     onClick = { app.films[entry.jwId]?.let(onOpen) },
@@ -199,6 +203,7 @@ private fun VhsBox(
     film: Film?,
     fallbackTitle: String,
     fallbackPoster: String?,
+    ownedOnYouTube: Boolean,
     requestFocus: Boolean,
     onFocused: () -> Unit,
     onClick: () -> Unit,
@@ -247,7 +252,12 @@ private fun VhsBox(
                 Box(Modifier.height(20.dp)) {
                     when {
                         film == null -> Unit
-                        film.watchServices.isNotEmpty() -> ServiceIcons(film.watchServices)
+                        ownedOnYouTube || film.watchServices.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (ownedOnYouTube) {
+                                AsyncImage(FilmLauncher.YOUTUBE_ICON, "Owned on YouTube", Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)))
+                            }
+                            ServiceIcons(film.watchServices, max = if (ownedOnYouTube) 3 else 4)
+                        }
                         film.cheapestRent != null -> Text("Rent ${film.cheapestRent?.price.orEmpty()}", fontSize = 12.sp, color = TicketYellow)
                         else -> Text("Not streaming", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
                     }

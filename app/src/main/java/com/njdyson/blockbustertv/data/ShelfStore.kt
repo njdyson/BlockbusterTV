@@ -23,7 +23,12 @@ data class ShelfFilm(
 data class Shelf(val id: String, val name: String, val films: List<ShelfFilm>)
 
 @Serializable
-data class ShelvesFile(val version: Int = 1, val shelves: List<Shelf>)
+data class ShelvesFile(
+    val version: Int = 1,
+    val shelves: List<Shelf>,
+    /** JustWatch IDs of films bought on YouTube / Google TV, so their Watch button opens YouTube. */
+    val owned: List<String> = emptyList(),
+)
 
 /**
  * The user's shelves, saved as JSON in the app's files. The same format is the
@@ -32,10 +37,21 @@ data class ShelvesFile(val version: Int = 1, val shelves: List<Shelf>)
 class ShelfStore(context: Context) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val file = File(context.filesDir, "shelves.json")
-    private val _shelves = MutableStateFlow(load(context))
+    private val saved = load(context)
+    private val _shelves = MutableStateFlow(saved.shelves)
     val shelves: StateFlow<List<Shelf>> = _shelves.asStateFlow()
+    private val _owned = MutableStateFlow(saved.owned.toSet())
+    val owned: StateFlow<Set<String>> = _owned.asStateFlow()
 
-    fun export(): String = json.encodeToString(ShelvesFile.serializer(), ShelvesFile(shelves = shelves.value))
+    fun export(): String = json.encodeToString(ShelvesFile.serializer(), snapshot())
+
+    private fun snapshot() = ShelvesFile(shelves = _shelves.value, owned = _owned.value.sorted())
+
+    @Synchronized
+    fun setOwned(jwId: String, owned: Boolean) {
+        _owned.value = if (owned) _owned.value + jwId else _owned.value - jwId
+        save()
+    }
 
     fun addShelf(name: String): String {
         val id = UUID.randomUUID().toString().take(8)
@@ -65,20 +81,22 @@ class ShelfStore(context: Context) {
 
     @Synchronized
     private fun update(change: (List<Shelf>) -> List<Shelf>) {
-        val next = change(_shelves.value)
-        _shelves.value = next
-        file.writeText(json.encodeToString(ShelvesFile.serializer(), ShelvesFile(shelves = next)))
+        _shelves.value = change(_shelves.value)
+        save()
     }
 
+    private fun save() = file.writeText(json.encodeToString(ShelvesFile.serializer(), snapshot()))
+
     /** Saved shelves, or on first run the starter shelves from assets/collections.json. */
-    private fun load(context: Context): List<Shelf> {
-        runCatching { return json.decodeFromString(ShelvesFile.serializer(), file.readText()).shelves }
+    private fun load(context: Context): ShelvesFile {
+        runCatching { return json.decodeFromString(ShelvesFile.serializer(), file.readText()) }
         return runCatching {
             val starter = context.assets.open("collections.json").bufferedReader().use { it.readText() }
-            json.decodeFromString<StarterFile>(starter).collections.map { c ->
+            val shelves = json.decodeFromString<StarterFile>(starter).collections.map { c ->
                 Shelf(UUID.randomUUID().toString().take(8), c.name, c.films.map { ShelfFilm(it.jwId, it.imdbId, it.title) })
             }
-        }.getOrDefault(emptyList())
+            ShelvesFile(shelves = shelves)
+        }.getOrDefault(ShelvesFile(shelves = emptyList()))
     }
 
     @Serializable

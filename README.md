@@ -32,6 +32,12 @@ Link Lab results on a Fire TV Stick 4K (Fire OS 6.7):
 | BBC iPlayer, ITVX, Channel 4, NOW | The app's home, with the title shown to search for |
 | YouTube trailers | `https://www.youtube.com/watch?v=` (not `vnd.youtube://`) |
 
+**Buying on YouTube:** every film page has a YouTube button under Rent or buy
+(JustWatch has no UK data for YouTube's film store). It shows a QR code that opens
+YouTube's search for the film on your phone, where it can be bought or rented.
+Mark it as owned on the TV and its Watch button then opens the YouTube app, where
+purchases appear under Library. Owned films are saved with the shelves.
+
 Trailers need a free TMDB API key: add it as the `TMDB_API_KEY` Actions secret
 (or in `secrets.properties` for local builds).
 

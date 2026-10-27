@@ -90,7 +90,7 @@ class EditServer(
         val shelves = store.shelves.value.map { shelf ->
             shelf.copy(films = shelf.films.map { if (it.poster == null) it.copy(poster = posterFor(it.jwId)) else it })
         }
-        return jsonResponse(json.encodeToString(ShelvesFile.serializer(), ShelvesFile(shelves = shelves)))
+        return jsonResponse(json.encodeToString(ShelvesFile.serializer(), ShelvesFile(shelves = shelves, owned = store.owned.value.sorted())))
     }
 
     private fun body(session: IHTTPSession): String {
