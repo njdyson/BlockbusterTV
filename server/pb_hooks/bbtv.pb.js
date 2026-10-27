@@ -45,6 +45,13 @@ routerAdd("GET", "/api/bbtv/search", (e) => {
   return e.json(200, lib.search(params))
 })
 
+// A film's details, cast and where to watch it: ?id=tm92641
+routerAdd("GET", "/api/bbtv/film", (e) => {
+  const lib = require(`${__hooks}/bbtv_lib.js`)
+  lib.caller(e)
+  return e.json(200, lib.filmDetails(e.request.url.query().get("id")))
+})
+
 // People matching a name, to search by actor or director: ?q=nolan
 routerAdd("GET", "/api/bbtv/people", (e) => {
   const lib = require(`${__hooks}/bbtv_lib.js`)

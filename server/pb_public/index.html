@@ -81,9 +81,9 @@
   footer a { color: var(--yellow); }
 
   /* Bottom sheet: "Add <film> to…" */
-  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 17; }
   .sheet {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--shelf);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 18; background: var(--shelf);
     border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
     max-height: 80vh; overflow-y: auto; box-shadow: 0 -8px 30px rgba(0,0,0,.4);
   }
@@ -133,6 +133,36 @@
   .pick.on { background: var(--yellow); border-color: var(--yellow); }
   .selectbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   button.chip.toggle.on { background: var(--good); color: #fff; }
+  /* Film page */
+  #filmView { position: fixed; inset: 0; z-index: 15; background: var(--navy); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .fv-hero { position: relative; height: 230px; background: #000 center / cover no-repeat; }
+  .fv-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(10,20,60,.1), var(--navy)); }
+  .fv-close { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 12px; z-index: 16; width: 40px; height: 40px;
+              border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 20px; padding: 0; }
+  .fv-body { padding: 0 16px calc(40px + env(safe-area-inset-bottom)); margin-top: -110px; position: relative; z-index: 1; }
+  .fv-top { display: flex; gap: 14px; align-items: flex-end; }
+  .fv-top img, .fv-top .noposter { width: 110px; height: 165px; border-radius: 8px; object-fit: cover; flex: none; box-shadow: 0 8px 24px rgba(0,0,0,.5); background: #000; }
+  .fv-title { font-size: 24px; font-weight: 800; line-height: 1.15; }
+  .fv-meta { color: var(--yellow); font-size: 14px; margin-top: 6px; }
+  .fv-genres { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .fv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .fv-actions a, .fv-actions button { text-decoration: none; }
+  a.btn { display: inline-block; border-radius: 8px; padding: 10px 14px; font-weight: 700; background: rgba(255,255,255,.12); color: var(--text); font-size: 15px; }
+  .fv-synopsis { margin-top: 16px; line-height: 1.5; }
+  .fv-onshelves { margin-top: 10px; }
+  .offer { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); color: var(--text); text-decoration: none; }
+  .offer:first-child { border-top: 0; }
+  .offer img { width: 36px; height: 36px; border-radius: 8px; flex: none; background: #000; }
+  .offer .grow { flex: 1; min-width: 0; }
+  .offer .what { color: var(--muted); font-size: 13px; }
+  .offer .go { color: var(--yellow); font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .people { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .person { all: unset; cursor: pointer; flex: none; background: var(--shelf); border-radius: 10px; padding: 8px 12px; max-width: 160px; }
+  .person b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .person span { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .add-quick { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border-radius: 50%; padding: 0;
+               background: var(--yellow); color: var(--navy); font-size: 20px; font-weight: 900; line-height: 30px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .result .badge { right: auto; left: 6px; }
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
@@ -186,6 +216,7 @@
 </section>
 
 <div id="error"></div>
+<div id="filmView" hidden></div>
 <div id="sheet" hidden></div>
 <div id="toast" class="toast" hidden></div>
 
@@ -256,6 +287,8 @@ $("loginForm").onsubmit = async (e) => {
 $("signOut").onclick = (e) => { e.preventDefault(); signedOut(); };
 
 async function start(user) {
+  // A reload while a film page was open: start from the shelves.
+  if (location.hash.startsWith("#film=")) history.replaceState(null, "", "/");
   renderFilters();
   $("loginView").hidden = true;
   $("mainView").hidden = false;
@@ -333,6 +366,8 @@ function renderOverview() {
 
 function render() {
   renderResults();
+  // Keep an open film page in step (e.g. "On your shelves" after adding it).
+  if (!$("filmView").hidden && currentFilm) renderFilm(currentFilm.film, currentFilm.details);
   $("viewShelves").classList.toggle("on", view === "shelves");
   $("viewOverview").classList.toggle("on", view === "overview");
   if (view === "overview") return renderOverview();
@@ -427,7 +462,7 @@ function renderShelf(shelf, i, count) {
             selecting.chosen.has(f.jwId) ? selecting.chosen.delete(f.jwId) : selecting.chosen.add(f.jwId);
             render();
           } }, poster(f), el("span", { className: "pick" + (chosen ? " on" : ""), textContent: chosen ? "✓" : "" }))
-        : poster(f),
+        : el("button", { className: "result", onclick: () => openFilm(f) }, poster(f)),
       ...(library.owned.includes(f.jwId) ? [el("span", { className: "owned", textContent: "OWNED" })] : []),
       el("div", { className: "name", textContent: f.title }),
       picking ? "" : el("div", { className: "tools" },
@@ -483,7 +518,7 @@ function renderShelf(shelf, i, count) {
         el("button", { className: "ghost small", textContent: "Ungroup", onclick: () => { openSet = null; op({ op: "ungroupSet", shelf: shelf.id, set: set.id }); } }),
         el("button", { className: "ghost small", textContent: "Close", onclick: () => { openSet = null; render(); } })),
       el("div", { className: "films" }, ...open.films.map((f, k) => el("div", { className: "film" },
-        poster(f),
+        el("button", { className: "result", onclick: () => openFilm(f) }, poster(f)),
         el("div", { className: "name", textContent: f.title }),
         el("div", { className: "tools" },
           el("button", { className: "ghost", textContent: "◀", disabled: k === 0, onclick: () => reorder(k, -1) }),
@@ -503,12 +538,15 @@ const shelvesWith = (film) => library.shelves.filter((s) => s.films.some((f) => 
 function renderResults() {
   $("results").replaceChildren(...results.map((film) => {
     const on = shelvesWith(film).length;
-    return el("button", { className: "result", onclick: () => openSheet(film) },
-      el("div", { className: "poster" }, poster(film),
-        ...(film.rating ? [el("span", { className: "rating", textContent: film.rating.toFixed(1) })] : []),
-        ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
-      el("div", { className: "title", textContent: film.title }),
-      el("div", { className: "year", textContent: film.year || "" }));
+    // Tap the poster for the film page; + adds it to a shelf straight away.
+    return el("div", { style: "position:relative; min-width:0" },
+      el("button", { className: "result", onclick: () => openFilm(film) },
+        el("div", { className: "poster" }, poster(film),
+          ...(film.rating ? [el("span", { className: "rating", textContent: film.rating.toFixed(1) })] : []),
+          ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
+        el("div", { className: "title", textContent: film.title }),
+        el("div", { className: "year", textContent: film.year || "" })),
+      el("button", { className: "add-quick", textContent: "+", title: "Add to a shelf", onclick: () => openSheet(film) }));
   }));
 }
 
@@ -715,6 +753,96 @@ $("backup").onclick = (e) => {
   a.click();
   a.remove();
 };
+
+// --- Film page ---------------------------------------------------------------
+
+const minutes = (m) => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+const youtube = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+
+/** Opens the film page. [film] is what's already known (title, poster) so it shows at once. */
+function openFilm(film) {
+  if (!film || !film.jwId) return;
+  if (!(history.state && history.state.film)) history.pushState({ film: film.jwId }, "", "#film=" + film.jwId);
+  else history.replaceState({ film: film.jwId }, "", "#film=" + film.jwId);
+  renderFilm(film, null);
+  $("filmView").hidden = false;
+  $("filmView").scrollTop = 0;
+  document.body.style.overflow = "hidden";
+  api("/api/bbtv/film?id=" + encodeURIComponent(film.jwId))
+    .then((details) => { if (history.state && history.state.film === film.jwId) renderFilm({ ...film, ...details }, details); })
+    .catch((e) => showError(e));
+}
+
+function closeFilm() {
+  currentFilm = null;
+  $("filmView").hidden = true;
+  $("filmView").replaceChildren();
+  document.body.style.overflow = "";
+}
+
+// The phone's Back gesture closes the film page.
+window.addEventListener("popstate", () => { if (!(history.state && history.state.film)) closeFilm(); });
+
+let currentFilm = null;
+
+function renderFilm(film, details) {
+  currentFilm = { film, details };
+  const owned = library.owned.includes(film.jwId);
+  const shelves = shelvesWith(film);
+  const meta = details ? [
+    film.year, film.runtime && minutes(film.runtime), film.ageCertification,
+    film.rating && `IMDb ${film.rating.toFixed(1)}/10` + (film.votes ? ` (${Math.round(film.votes / 1000)}k votes)` : ""),
+  ].filter(Boolean).join("  ·  ") : (film.year || "");
+  const searchPerson = (person) => {
+    history.back();
+    filters.person = { id: person.id, name: person.name };
+    $("q").value = "";
+    filtersChanged();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const personTile = (person) => el("button", { className: "person", onclick: () => searchPerson(person) },
+    el("b", { textContent: person.name }), ...(person.character ? [el("span", { textContent: person.character })] : []));
+  const offerRow = (o) => el(o.url ? "a" : "div", { className: "offer", ...(o.url ? { href: o.url, target: "_blank", rel: "noopener" } : {}) },
+    o.icon ? el("img", { src: o.icon, alt: "" }) : el("div"),
+    el("div", { className: "grow" },
+      el("div", { style: "font-weight:700", textContent: o.provider }),
+      el("div", { className: "what", textContent: o.kind === "watch" ? (o.free ? "Free" : "With a subscription") : `${o.kind === "rent" ? "Rent" : "Buy"} ${o.price || ""}` })),
+    o.url ? el("span", { className: "go", textContent: "Open ›" }) : "");
+
+  const offers = details ? details.offers : [];
+  const watch = offers.filter((o) => o.kind === "watch");
+  const store = offers.filter((o) => o.kind !== "watch");
+  const title = `${film.title}${film.year ? " " + film.year : ""}`;
+
+  $("filmView").replaceChildren(
+    el("button", { className: "fv-close", textContent: "✕", title: "Close", onclick: () => history.back() }),
+    el("div", { className: "fv-hero", style: film.backdrop ? `background-image:url("${film.backdrop}")` : "" }),
+    el("div", { className: "fv-body" },
+      el("div", { className: "fv-top" }, poster(film),
+        el("div", {},
+          el("div", { className: "fv-title", textContent: film.title }),
+          el("div", { className: "fv-meta", textContent: meta }),
+          ...(details && film.genres.length ? [el("div", { className: "fv-genres", textContent: film.genres.join(" / ") })] : []))),
+      el("div", { className: "fv-actions" },
+        el("button", { textContent: shelves.length ? "+ Add to another shelf" : "+ Add to a shelf", onclick: () => openSheet(film) }),
+        el("a", { className: "btn", href: youtube(title + " trailer"), target: "_blank", rel: "noopener", textContent: "▶ Trailer" }),
+        el("button", { className: "chip toggle" + (owned ? " on" : ""), textContent: owned ? "✓ Owned on YouTube" : "Owned on YouTube?",
+          onclick: () => op({ op: "setOwned", jwId: film.jwId, owned: !owned }) })),
+      shelves.length ? el("div", { className: "muted fv-onshelves", textContent: "On your shelves: " + shelves.map((x) => x.name).join(", ") }) : "",
+      details ? el("div", { className: "fv-synopsis", textContent: film.synopsis || "No synopsis available." }) : el("div", { className: "muted fv-synopsis", textContent: "Loading…" }),
+      ...(details ? [
+        el("h2", { textContent: "WHERE TO WATCH" }),
+        el("div", { className: "card" },
+          ...(watch.length ? watch.map(offerRow) : [el("div", { className: "muted", textContent: "Not included with any streaming service in the UK right now." })])),
+        el("h2", { textContent: "RENT OR BUY" }),
+        el("div", { className: "card" }, ...store.map(offerRow),
+          offerRow({ kind: "buy", provider: "YouTube", price: "(search)", url: youtube(title), icon: "https://images.justwatch.com/icon/113378150/s100/youtubefree.png" })),
+        ...(film.directors.length ? [el("h2", { textContent: film.directors.length > 1 ? "DIRECTORS" : "DIRECTOR" }), el("div", { className: "people" }, ...film.directors.map(personTile))] : []),
+        ...(film.cast.length ? [el("h2", { textContent: "CAST" }), el("div", { className: "people" }, ...film.cast.map(personTile))] : []),
+        el("div", { className: "muted", style: "margin-top:16px", textContent: "Tap a name to see their other films. Data from JustWatch." }),
+      ] : []),
+    ));
+}
 
 // --- Start ------------------------------------------------------------------
 

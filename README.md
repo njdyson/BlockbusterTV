@@ -23,6 +23,9 @@ Curated lists of movies from streaming sources, for Fire TV and Android TV.
   Rocky 1–5. Phone app: Make a set on a shelf. TV: hold Select on a film > Add to a set.
 - **Shuffle**: a shelf can show its films (and sets) in a new random order each time the
   app is opened, or after 30 minutes away. Phone app: Shuffle on TV. TV: hold Select.
+- **Film pages** (phone app): tap any poster for the synopsis, runtime, age rating,
+  IMDb rating, genres, director and cast (tap a name for their films), where to watch
+  and rent/buy prices with links, a trailer link, and the owned-on-YouTube switch.
 - **Overview** (phone app and TV) zooms out: every shelf as a tile of its first four
   posters; pick one to jump to that shelf.
 

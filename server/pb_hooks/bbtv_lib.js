@@ -306,6 +306,76 @@ function people(text) {
     .filter((person) => person.name)
 }
 
+const GENRE_NAMES = {
+  act: "Action", ani: "Animation", cmy: "Comedy", crm: "Crime", doc: "Documentary", drm: "Drama",
+  fnt: "Fantasy", fml: "Family", hst: "History", hrr: "Horror", msc: "Music", rma: "Romance",
+  scf: "Sci-Fi", spt: "Sport", trl: "Thriller", war: "War", wsn: "Western",
+}
+
+function jwImage(path, profile, format) {
+  return path ? "https://images.justwatch.com" + path.replace("{profile}", profile).replace("{format}", format || "jpg") : null
+}
+
+/** Everything about one film for the phone app's film page: details, people, where to watch. */
+function filmDetails(id) {
+  if (!/^tm\d+$/.test(String(id || ""))) throw new BadRequestError("Unknown film.")
+  const query = `query($id: ID!) { node(id: $id) { id ... on Movie {
+    content(country: GB, language: "en") {
+      title originalReleaseYear shortDescription runtime ageCertification
+      genres { shortName } scoring { imdbScore imdbVotes } externalIds { imdbId tmdbId }
+      posterUrl backdrops { backdropUrl } credits { role name personId characterName }
+    }
+    offers(country: GB, platform: WEB) {
+      monetizationType retailPrice(language: "en") retailPriceValue standardWebURL
+      package { technicalName clearName shortName icon }
+    } } } }`
+  const node = gql(query, { id }).node
+  if (!node || !node.content) throw new NotFoundError("Film not found.")
+  const c = node.content
+  const ours = Object.values(SERVICE_PACKAGES)
+  // One entry per provider and kind (JustWatch lists SD, HD and 4K separately), cheapest first.
+  const offers = {}
+  for (const o of node.offers || []) {
+    const kind = { FLATRATE: "watch", FREE: "watch", ADS: "watch", RENT: "rent", BUY: "buy" }[o.monetizationType]
+    if (!kind) continue
+    // Shops listed without a price sell discs (e.g. Zavvi), not streams.
+    if (kind !== "watch" && !o.retailPrice) continue
+    const key = kind + ":" + o.package.clearName
+    const current = offers[key]
+    if (current && (current.priceValue || 0) <= (o.retailPriceValue || 0)) continue
+    offers[key] = {
+      kind,
+      provider: o.package.clearName,
+      icon: jwImage(o.package.icon, "s100", "png"),
+      price: o.retailPrice || null,
+      priceValue: o.retailPriceValue || null,
+      url: o.standardWebURL || null,
+      mine: ours.includes(o.package.shortName),
+      free: o.monetizationType !== "FLATRATE" && kind === "watch",
+    }
+  }
+  const credits = c.credits || []
+  const person = (cr) => ({ id: "tp" + cr.personId, name: cr.name, character: cr.characterName || null })
+  return {
+    jwId: node.id,
+    imdbId: (c.externalIds && c.externalIds.imdbId) || "",
+    title: c.title || "",
+    year: c.originalReleaseYear || null,
+    synopsis: c.shortDescription || "",
+    runtime: c.runtime || null,
+    ageCertification: c.ageCertification || null,
+    genres: (c.genres || []).map((g) => GENRE_NAMES[g.shortName]).filter(Boolean),
+    rating: (c.scoring && c.scoring.imdbScore) || null,
+    votes: (c.scoring && c.scoring.imdbVotes) || null,
+    poster: jwImage(c.posterUrl, "s332"),
+    backdrop: jwImage(c.backdrops && c.backdrops[0] && c.backdrops[0].backdropUrl, "s1440"),
+    directors: credits.filter((cr) => cr.role === "DIRECTOR").map(person),
+    cast: credits.filter((cr) => cr.role === "ACTOR").slice(0, 12).map(person),
+    // Your services first, then cheapest.
+    offers: Object.values(offers).sort((a, b) => (b.mine - a.mine) || ((a.priceValue || 0) - (b.priceValue || 0))),
+  }
+}
+
 function newPairingCode() {
   return $security.randomStringWithAlphabet(6, CODE_ALPHABET)
 }
@@ -332,6 +402,6 @@ function cleanupPairings() {
 }
 
 module.exports = {
-  caller, requireUser, load, save, applyOp, search, people, emptyLibrary,
+  caller, requireUser, load, save, applyOp, search, people, filmDetails, emptyLibrary,
   newPairingCode, findPairing, cleanupPairings, PAIRING_TTL_MS,
 }
