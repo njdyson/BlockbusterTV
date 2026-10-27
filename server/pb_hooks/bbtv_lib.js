@@ -131,21 +131,54 @@ function applyOp(data, op) {
   }
 }
 
-/** Film search on JustWatch (GB), the same query the TV app uses. */
-function search(text) {
-  text = String(text || "").trim()
-  if (!text) return []
-  const query = `query($q: String!) { popularTitles(country: GB, first: 12, filter: {objectTypes: [MOVIE], searchQuery: $q}) {
-    edges { node { id ... on Movie { content(country: GB, language: "en") { title originalReleaseYear posterUrl externalIds { imdbId } } } } } } }`
+// Our service IDs (as in the TV's services.json) to JustWatch package short names.
+const SERVICE_PACKAGES = {
+  netflix: "nfx", prime: "amp", disney: "dnp", appletv: "atp", plex: "plx",
+  iplayer: "bbc", itvx: "itv", channel4: "al4", now: "ntv",
+}
+const SORTS = { popular: "POPULAR", rating: "IMDB_SCORE", newest: "RELEASE_YEAR", az: "ALPHABETICAL" }
+
+function gql(query, variables) {
   const res = $http.send({
     method: "POST",
     url: JUSTWATCH,
-    body: JSON.stringify({ query, variables: { q: text } }),
+    body: JSON.stringify({ query, variables }),
     headers: { "Content-Type": "application/json" },
     timeout: 20,
   })
   if (res.statusCode !== 200 || !res.json || !res.json.data) throw new ApiError(502, "Film search is unavailable right now.")
-  return (res.json.data.popularTitles.edges || []).map((edge) => {
+  return res.json.data
+}
+
+/**
+ * Film search on JustWatch (GB). Every part is optional and they combine:
+ * q (title), person (JustWatch person ID, e.g. "tp1725"), genres (codes like "scf"),
+ * yearMin/yearMax, minRating (IMDb), services (our IDs: streaming there now), sort.
+ */
+function search(params) {
+  const p = params || {}
+  const filter = { objectTypes: ["MOVIE"] }
+  const text = String(p.q || "").trim()
+  if (text) filter.searchQuery = text
+  if (/^tp\d+$/.test(p.person || "")) filter.personId = p.person
+  const genres = String(p.genres || "").split(",").filter((g) => /^[a-z]{3}$/.test(g))
+  if (genres.length) filter.genres = genres
+  const yearMin = parseInt(p.yearMin, 10), yearMax = parseInt(p.yearMax, 10)
+  if (yearMin || yearMax) filter.releaseYear = { min: yearMin || 1900, max: yearMax || 2100 }
+  const rating = parseFloat(p.minRating)
+  if (rating > 0) filter.imdbScore = { min: rating }
+  const packages = String(p.services || "").split(",").map((id) => SERVICE_PACKAGES[id]).filter(Boolean)
+  if (packages.length) {
+    filter.packages = packages
+    filter.monetizationTypes = ["FLATRATE", "FREE", "ADS"]
+  }
+  if (Object.keys(filter).length === 1) return []
+  const query = `query($filter: TitleFilter!, $sort: PopularTitlesSorting!) {
+    popularTitles(country: GB, first: 24, sortBy: $sort, filter: $filter) {
+      edges { node { id ... on Movie { content(country: GB, language: "en") {
+        title originalReleaseYear posterUrl externalIds { imdbId } scoring { imdbScore } } } } } } }`
+  const data = gql(query, { filter, sort: SORTS[p.sort] || "POPULAR" })
+  return (data.popularTitles.edges || []).map((edge) => {
     const node = edge.node
     const c = node.content || {}
     return {
@@ -154,8 +187,20 @@ function search(text) {
       title: c.title || "",
       year: c.originalReleaseYear || null,
       poster: c.posterUrl ? "https://images.justwatch.com" + c.posterUrl.replace("{profile}", "s166").replace("{format}", "jpg") : null,
+      rating: (c.scoring && c.scoring.imdbScore) || null,
     }
   })
+}
+
+/** People (actors, directors…) matching a name, most popular first. */
+function people(text) {
+  text = String(text || "").trim()
+  if (text.length < 3) return []
+  const query = `query($q: String!) { popularPeople(country: GB, first: 6, filter: {searchQuery: $q}) {
+    edges { node { id ... on Person { content(country: GB, language: "en") { fullName } } } } } }`
+  return (gql(query, { q: text }).popularPeople.edges || [])
+    .map((edge) => ({ id: edge.node.id, name: (edge.node.content && edge.node.content.fullName) || "" }))
+    .filter((person) => person.name)
 }
 
 function newPairingCode() {
@@ -184,6 +229,6 @@ function cleanupPairings() {
 }
 
 module.exports = {
-  caller, requireUser, load, save, applyOp, search, emptyLibrary,
+  caller, requireUser, load, save, applyOp, search, people, emptyLibrary,
   newPairingCode, findPairing, cleanupPairings, PAIRING_TTL_MS,
 }

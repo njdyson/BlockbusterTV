@@ -94,6 +94,32 @@
   .choices { display: grid; gap: 8px; }
   .choices button { width: 100%; text-align: left; padding: 14px 16px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
   .choices button.on { background: rgba(76,175,80,.25); color: #fff; }
+  /* Search: people, filters, overview */
+  .search-row { display: flex; gap: 8px; }
+  .search-row input { flex: 1; min-width: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chips:empty { display: none; }
+  button.chip { background: rgba(255,255,255,.12); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 600; }
+  button.chip.on { background: var(--yellow); color: var(--navy); }
+  button.chip.person { background: #2d3a7a; }
+  .group-label { font-size: 12px; letter-spacing: 1.5px; color: var(--muted); margin: 12px 0 6px; font-weight: 700; }
+  .group-label:first-child { margin-top: 0; }
+  #filters .chips { margin-top: 0; }
+  .rating { position: absolute; bottom: 6px; left: 6px; background: var(--yellow); color: var(--navy); border-radius: 999px;
+            font-size: 11px; font-weight: 800; padding: 1px 6px; }
+  .shelves-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 8px; }
+  .shelves-head h2 { margin: 0; }
+  .seg { display: flex; background: rgba(255,255,255,.1); border-radius: 8px; padding: 3px; }
+  .seg button { background: transparent; color: var(--text); padding: 5px 10px; font-size: 13px; font-weight: 600; }
+  .seg button.on { background: var(--yellow); color: var(--navy); }
+  .overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .tile { all: unset; cursor: pointer; background: var(--shelf); border-radius: 10px; padding: 8px; display: block; min-width: 0; }
+  .mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .mosaic img, .mosaic .noposter, .mosaic .blank { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 3px; background: #000; display: block; }
+  .mosaic .noposter { font-size: 10px; padding: 3px; }
+  .mosaic .blank { background: rgba(255,255,255,.05); }
+  .tile .tname { font-weight: 800; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile .tcount { color: var(--muted); font-size: 12px; }
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: #fff; color: var(--navy); font-weight: 700; padding: 10px 16px; border-radius: 999px;
@@ -120,10 +146,19 @@
   <div id="pairCard"></div>
 
   <h2>ADD A FILM</h2>
-  <input type="search" id="q" placeholder="Start typing a film title" autocomplete="off" autocorrect="off" enterkeyhint="search">
+  <div class="search-row">
+    <input type="search" id="q" placeholder="Film, actor or director" autocomplete="off" autocorrect="off" enterkeyhint="search">
+    <button class="ghost" id="filtersBtn">Filters</button>
+  </div>
+  <div class="card" id="filters" hidden></div>
+  <div class="chips" id="people"></div>
+  <div class="chips" id="active"></div>
   <div class="results" id="results"></div>
 
-  <h2>YOUR SHELVES</h2>
+  <div class="shelves-head">
+    <h2>YOUR SHELVES</h2>
+    <div class="seg"><button id="viewShelves">Shelves</button><button id="viewOverview">Overview</button></div>
+  </div>
   <div id="shelves"></div>
   <button class="ghost" id="newShelf">+ New shelf</button>
 
@@ -208,6 +243,7 @@ $("loginForm").onsubmit = async (e) => {
 $("signOut").onclick = (e) => { e.preventDefault(); signedOut(); };
 
 async function start(user) {
+  renderFilters();
   $("loginView").hidden = true;
   $("mainView").hidden = false;
   $("who").textContent = "Signed in as " + user.email;
@@ -256,8 +292,37 @@ function poster(film) {
     : el("div", { className: "noposter", textContent: film.title });
 }
 
+let view = localStorage.getItem("bbtv_view") || "shelves";
+
+function setView(next, scrollToShelf) {
+  view = next;
+  localStorage.setItem("bbtv_view", view);
+  render();
+  if (scrollToShelf) $("shelf-" + scrollToShelf)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("viewShelves").onclick = () => setView("shelves");
+$("viewOverview").onclick = () => setView("overview");
+
+/** Zoomed out: each shelf as a tile of its first four posters. Tap one to open it. */
+function renderOverview() {
+  const shelves = library.shelves;
+  $("shelves").replaceChildren(shelves.length
+    ? el("div", { className: "overview" }, ...shelves.map((shelf) => {
+        const four = shelf.films.slice(0, 4);
+        const cells = [...four.map(poster), ...Array.from({ length: 4 - four.length }, () => el("div", { className: "blank" }))];
+        return el("button", { className: "tile", onclick: () => setView("shelves", shelf.id) },
+          el("div", { className: "mosaic" }, ...cells),
+          el("div", { className: "tname", textContent: shelf.name }),
+          el("div", { className: "tcount", textContent: shelf.films.length === 1 ? "1 film" : `${shelf.films.length} films` }));
+      }))
+    : el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." }));
+}
+
 function render() {
   renderResults();
+  $("viewShelves").classList.toggle("on", view === "shelves");
+  $("viewOverview").classList.toggle("on", view === "overview");
+  if (view === "overview") return renderOverview();
   const shelves = library.shelves;
   $("shelves").replaceChildren(...(shelves.length ? shelves.map((shelf, i) => {
     const head = el("div", {},
@@ -289,7 +354,7 @@ function render() {
               onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: 1 }) }),
           ))))
       : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." });
-    return el("div", { className: "shelf" }, head, films);
+    return el("div", { className: "shelf", id: "shelf-" + shelf.id }, head, films);
   }) : [el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." })]));
 }
 
@@ -301,11 +366,82 @@ function renderResults() {
   $("results").replaceChildren(...results.map((film) => {
     const on = shelvesWith(film).length;
     return el("button", { className: "result", onclick: () => openSheet(film) },
-      el("div", { className: "poster" }, poster(film), ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
+      el("div", { className: "poster" }, poster(film),
+        ...(film.rating ? [el("span", { className: "rating", textContent: film.rating.toFixed(1) })] : []),
+        ...(on ? [el("span", { className: "badge", textContent: "✓ " + on })] : [])),
       el("div", { className: "title", textContent: film.title }),
       el("div", { className: "year", textContent: film.year || "" }));
   }));
 }
+
+// --- Advanced search: people and filters ---------------------------------------
+
+const GENRES = [["act", "Action"], ["cmy", "Comedy"], ["drm", "Drama"], ["scf", "Sci-Fi"], ["trl", "Thriller"],
+  ["hrr", "Horror"], ["rma", "Romance"], ["fml", "Family"], ["ani", "Animation"], ["crm", "Crime"],
+  ["fnt", "Fantasy"], ["doc", "Documentary"], ["war", "War"], ["wsn", "Western"], ["msc", "Music"],
+  ["hst", "History"], ["spt", "Sport"]];
+const DECADES = [["", "Any"], ["1950", "50s"], ["1960", "60s"], ["1970", "70s"], ["1980", "80s"],
+  ["1990", "90s"], ["2000", "00s"], ["2010", "10s"], ["2020", "20s"]];
+const RATINGS = [["", "Any"], ["6", "6+"], ["7", "7+"], ["8", "8+"]];
+const SERVICES = [["netflix", "Netflix"], ["prime", "Prime Video"], ["disney", "Disney+"], ["appletv", "Apple TV"],
+  ["iplayer", "iPlayer"], ["itvx", "ITVX"], ["channel4", "Channel 4"], ["now", "NOW"], ["plex", "Plex"]];
+const SORTS = [["popular", "Popular"], ["rating", "Top rated"], ["newest", "Newest"], ["az", "A–Z"]];
+
+const NO_FILTERS = { genres: [], decade: "", minRating: "", services: [], sort: "popular", person: null };
+let filters = { ...NO_FILTERS, genres: [], services: [] };
+
+const filterCount = () =>
+  filters.genres.length + filters.services.length + (filters.decade ? 1 : 0) + (filters.minRating ? 1 : 0) + (filters.sort !== "popular" ? 1 : 0);
+
+function chipGroup(label, options, isOn, toggle) {
+  return [
+    el("div", { className: "group-label", textContent: label }),
+    el("div", { className: "chips" }, ...options.map(([value, text]) =>
+      el("button", { className: "chip" + (isOn(value) ? " on" : ""), textContent: text, onclick: () => { toggle(value); filtersChanged(); } }))),
+  ];
+}
+
+const toggleIn = (list, value) => list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+
+function renderFilters() {
+  $("filtersBtn").textContent = filterCount() ? `Filters (${filterCount()})` : "Filters";
+  $("filters").replaceChildren(
+    ...chipGroup("GENRE", GENRES, (v) => filters.genres.includes(v), (v) => { filters.genres = toggleIn(filters.genres, v); }),
+    ...chipGroup("DECADE", DECADES, (v) => filters.decade === v, (v) => { filters.decade = v; }),
+    ...chipGroup("IMDB RATING", RATINGS, (v) => filters.minRating === v, (v) => { filters.minRating = v; }),
+    ...chipGroup("STREAMING ON", SERVICES, (v) => filters.services.includes(v), (v) => { filters.services = toggleIn(filters.services, v); }),
+    ...chipGroup("SORT BY", SORTS, (v) => filters.sort === v, (v) => { filters.sort = v; }),
+    el("div", { className: "chips", style: "margin-top:14px" },
+      el("button", { className: "ghost small", textContent: "Clear filters", onclick: () => {
+        filters = { ...NO_FILTERS, genres: [], services: [], person: filters.person };
+        filtersChanged();
+      } }),
+      el("button", { className: "small", textContent: "Done", onclick: () => { $("filters").hidden = true; renderFilters(); } })),
+  );
+  // What's active, shown under the search box even when the panel is closed.
+  const active = [];
+  if (filters.person) {
+    active.push(el("button", { className: "chip on", textContent: `With ${filters.person.name}  ✕`, onclick: () => { filters.person = null; filtersChanged(); } }));
+  }
+  if (filterCount() && $("filters").hidden) {
+    active.push(el("button", { className: "chip", textContent: `${filterCount()} filter${filterCount() > 1 ? "s" : ""}  ✕`, onclick: () => {
+      filters = { ...NO_FILTERS, genres: [], services: [], person: filters.person };
+      filtersChanged();
+    } }));
+  }
+  $("active").replaceChildren(...active);
+}
+
+function filtersChanged() {
+  renderFilters();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 250);
+}
+
+$("filtersBtn").onclick = () => {
+  $("filters").hidden = !$("filters").hidden;
+  renderFilters();
+};
 
 // Search as you type, ignoring answers that arrive after a newer search started.
 let searchTimer, searchSeq = 0;
@@ -320,12 +456,35 @@ $("q").addEventListener("keydown", (e) => {
 async function search() {
   const q = $("q").value.trim();
   const seq = ++searchSeq;
-  if (!q) { results = []; renderResults(); return; }
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (filters.person) params.set("person", filters.person.id);
+  if (filters.genres.length) params.set("genres", filters.genres.join(","));
+  if (filters.decade) { params.set("yearMin", filters.decade); params.set("yearMax", String(+filters.decade + 9)); }
+  if (filters.minRating) params.set("minRating", filters.minRating);
+  if (filters.services.length) params.set("services", filters.services.join(","));
+  if (filters.sort !== "popular") params.set("sort", filters.sort);
+  const browsing = filters.person || filterCount() > 0;
+  if (!q && !browsing) { results = []; renderResults(); $("people").replaceChildren(); return; }
   try {
-    const found = await api("/api/bbtv/search?q=" + encodeURIComponent(q));
+    const [found, people] = await Promise.all([
+      api("/api/bbtv/search?" + params),
+      // Typing a name also offers matching actors and directors.
+      q.length >= 3 && !filters.person ? api("/api/bbtv/people?q=" + encodeURIComponent(q)) : Promise.resolve([]),
+    ]);
     if (seq !== searchSeq) return;
     results = found;
     renderResults();
+    $("people").replaceChildren(...people.map((person) => el("button", {
+      className: "chip person",
+      textContent: "🎬 " + person.name,
+      onclick: () => {
+        filters.person = person;
+        $("q").value = "";
+        $("q").blur();
+        filtersChanged();
+      },
+    })));
     if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: "No films found." }));
   } catch (err) { showError(err); }
 }

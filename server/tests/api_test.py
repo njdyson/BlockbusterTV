@@ -78,6 +78,16 @@ try:
     assert any(r["jwId"] == "tm92641" for r in results), results
     print(f"search ok ({len(results)} results)")
 
+    # Advanced search: people, a person's films, and combined filters.
+    people = call("GET", "/api/bbtv/people?q=christopher%20nolan", token=token)
+    nolan = next(p for p in people if p["name"] == "Christopher Nolan")
+    films = call("GET", f"/api/bbtv/search?person={nolan['id']}&sort=rating", token=token)
+    assert {"Inception", "Interstellar"} <= {f["title"] for f in films}, [f["title"] for f in films]
+    eighties = call("GET", "/api/bbtv/search?genres=scf&yearMin=1980&yearMax=1989&minRating=7&services=netflix,prime,disney", token=token)
+    assert eighties and all(1980 <= f["year"] <= 1989 and f["rating"] >= 7 for f in eighties), eighties
+    assert call("GET", "/api/bbtv/search", token=token) == []  # nothing asked, nothing returned
+    print(f"advanced search ok (Nolan: {len(films)} films, 80s sci-fi: {len(eighties)})")
+
     # Linking a TV.
     start = call("POST", "/api/bbtv/pair/start", {"name": "Living room Fire Stick"})
     code, secret = start["code"], start["secret"]
