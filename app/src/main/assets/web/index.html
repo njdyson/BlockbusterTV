@@ -253,7 +253,13 @@ function openSheet(film) {
       return el("button", {
         className: on ? "ghost on" : "",
         onclick: async () => {
-          if (on) return;
+          if (on) {
+            if (await op({ op: "removeFilm", shelf: shelf.id, jwId: film.jwId })) {
+              toast(`Removed ${film.title} from ${shelf.name}`);
+              draw();
+            }
+            return;
+          }
           if (await op({ op: "addFilm", shelf: shelf.id, film })) {
             toast(`Added ${film.title} to ${shelf.name}`);
             close();

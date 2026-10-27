@@ -697,29 +697,34 @@ function openSheet(film) {
   $("q").blur();
   const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
   const added = (shelf) => { toast(`Added ${film.title} to ${shelf.name}`); close(); };
-  const choices = library.shelves.map((shelf) => {
-    const on = shelf.films.some((f) => f.jwId === film.jwId);
-    return el("button", {
-      className: on ? "ghost on" : "",
-      onclick: async () => {
-        if (!on && await op({ op: "addFilm", shelf: shelf.id, film })) added(shelf);
-      },
-    }, el("span", { textContent: shelf.name }), el("span", { textContent: on ? "✓ On shelf" : "Add" }));
-  });
-  const newShelf = el("button", { className: "ghost", onclick: async () => {
-    const name = prompt("New shelf name");
-    if (!name || !name.trim()) return;
-    const id = await op({ op: "addShelf", name });
-    if (id && await op({ op: "addFilm", shelf: id, film })) added(library.shelves.find((s) => s.id === id));
-  } }, el("span", { textContent: "+ New shelf…" }), el("span"));
-  $("sheet").replaceChildren(
-    el("div", { className: "scrim", onclick: close }),
-    el("div", { className: "sheet" },
-      el("div", { className: "sheet-head" }, poster(film),
-        el("div", {}, el("div", { className: "t", textContent: film.title }), el("div", { className: "y", textContent: film.year || "" }))),
-      el("div", { className: "choices" }, ...choices, newShelf,
-        el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
-    ));
+  const removed = (shelf) => { toast(`Removed ${film.title} from ${shelf.name}`); draw(); };
+  const draw = () => {
+    const choices = library.shelves.map((shelf) => {
+      const on = shelf.films.some((f) => f.jwId === film.jwId);
+      return el("button", {
+        className: on ? "ghost on" : "",
+        onclick: async () => {
+          if (on) { if (await op({ op: "removeFilm", shelf: shelf.id, jwId: film.jwId })) removed(shelf); }
+          else if (await op({ op: "addFilm", shelf: shelf.id, film })) added(shelf);
+        },
+      }, el("span", { textContent: shelf.name }), el("span", { textContent: on ? "✓ On shelf" : "Add" }));
+    });
+    const newShelf = el("button", { className: "ghost", onclick: async () => {
+      const name = prompt("New shelf name");
+      if (!name || !name.trim()) return;
+      const id = await op({ op: "addShelf", name });
+      if (id && await op({ op: "addFilm", shelf: id, film })) added(library.shelves.find((s) => s.id === id));
+    } }, el("span", { textContent: "+ New shelf…" }), el("span"));
+    $("sheet").replaceChildren(
+      el("div", { className: "scrim", onclick: close }),
+      el("div", { className: "sheet" },
+        el("div", { className: "sheet-head" }, poster(film),
+          el("div", {}, el("div", { className: "t", textContent: film.title }), el("div", { className: "y", textContent: film.year || "" }))),
+        el("div", { className: "choices" }, ...choices, newShelf,
+          el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
+      ));
+  };
+  draw();
   $("sheet").hidden = false;
 }
 
