@@ -1,6 +1,8 @@
 package com.njdyson.blockbustertv.data
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -64,6 +66,18 @@ class AccountServerTest {
         val after = remote.op(buildJsonObject { put("op", "moveShelf"); put("shelf", "bbbb2222"); put("delta", -1) })
         assertEquals(listOf("Family", "Saturday"), after.shelves.map { it.name })
         assertEquals(after, remote.library())
+
+        // Sets and shuffle, as ShelfStore sends them: the server's copy matches the TV's own logic.
+        remote.op(buildJsonObject { put("op", "addFilm"); put("shelf", "aaaa1111"); put("film", buildJsonObject { put("jwId", "tm10"); put("title", "The Matrix") }) })
+        remote.op(buildJsonObject {
+            put("op", "createSet"); put("shelf", "aaaa1111"); put("id", "set00001"); put("name", "Mind-benders")
+            put("films", JsonArray(listOf("tm10", "tm92641").map { JsonPrimitive(it) }))
+        })
+        val shuffled = remote.op(buildJsonObject { put("op", "setShuffle"); put("shelf", "aaaa1111"); put("shuffle", true) })
+        val saturday = shuffled.shelves.single { it.id == "aaaa1111" }
+        assertEquals(listOf(FilmSet("set00001", "Mind-benders", listOf("tm10", "tm92641"))), saturday.sets)
+        assertTrue(saturday.shuffle)
+        assertEquals(listOf("set:set00001"), saturday.items().map { it.key })
 
         // Unlinking stops the key working.
         remote.forget()

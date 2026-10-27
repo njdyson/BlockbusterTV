@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import com.njdyson.blockbustertv.linklab.LinkLabScreen
 import com.njdyson.blockbustertv.ui.AppState
 import com.njdyson.blockbustertv.ui.BlockbusterTheme
+import com.njdyson.blockbustertv.ui.BoxSetScreen
 import com.njdyson.blockbustertv.ui.DetailScreen
 import com.njdyson.blockbustertv.ui.HomeScreen
 import com.njdyson.blockbustertv.ui.LinkAccountScreen
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
     // Bumped every time we come back to the foreground, e.g. after a launched app is closed.
     private val resumeCount = mutableIntStateOf(0)
     private var app: AppState? = null
+    private var stoppedAt: Long? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,11 +59,13 @@ class MainActivity : ComponentActivity() {
                     Screen.Home -> HomeScreen(
                         app,
                         onOpen = { open(Screen.Detail(it.jwId)) },
+                        onOpenSet = { shelfId, setId -> open(Screen.BoxSet(shelfId, setId)) },
                         onSearch = { open(Screen.Search) },
                         onPhoneEdit = { open(Screen.PhoneEdit) },
                         onSettings = { open(Screen.Settings) },
                     )
                     is Screen.Detail -> app.films[screen.jwId]?.let { DetailScreen(app, it) }
+                    is Screen.BoxSet -> BoxSetScreen(app, screen.shelfId, screen.setId, onOpen = { open(Screen.Detail(it.jwId)) })
                     Screen.Search -> SearchScreen(app)
                     Screen.PhoneEdit -> PhoneEditScreen(app, onDone = ::back)
                     Screen.LinkAccount -> LinkAccountScreen(app, onDone = ::back)
@@ -85,11 +89,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        stoppedAt = System.currentTimeMillis()
         app?.server?.stop()
     }
 
     override fun onResume() {
         super.onResume()
+        // Coming back after a while: shuffled shelves get a fresh order.
+        stoppedAt?.let { app?.reshuffleIfAwayFor(System.currentTimeMillis() - it) }
+        stoppedAt = null
         resumeCount.intValue++
     }
 }

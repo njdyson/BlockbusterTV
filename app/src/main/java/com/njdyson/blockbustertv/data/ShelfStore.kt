@@ -7,7 +7,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.StateFlow
@@ -27,8 +29,19 @@ data class ShelfFilm(
     val poster: String? = null,
 )
 
+/** Films on a shelf grouped into one box, e.g. Rocky 1–5. [films] are jwIds, in the set's own order. */
 @Serializable
-data class Shelf(val id: String, val name: String, val films: List<ShelfFilm>)
+data class FilmSet(val id: String, val name: String, val films: List<String>)
+
+@Serializable
+data class Shelf(
+    val id: String,
+    val name: String,
+    val films: List<ShelfFilm>,
+    val sets: List<FilmSet> = emptyList(),
+    /** Shown in a new random order each session (sets keep their own order). */
+    val shuffle: Boolean = false,
+)
 
 @Serializable
 data class ShelvesFile(
@@ -113,8 +126,79 @@ class ShelfStore(context: Context) {
     }
 
     fun removeFilm(shelfId: String, jwId: String) {
-        updateShelf(shelfId) { shelf -> shelf.copy(films = shelf.films.filterNot { it.jwId == jwId }) }
+        updateShelf(shelfId) { shelf -> shelf.copy(films = shelf.films.filterNot { it.jwId == jwId }).withCleanSets() }
         send("removeFilm") { put("shelf", shelfId); put("jwId", jwId) }
+    }
+
+    /** Moves a film or a whole set (by its item key) left or right among the shelf's items. */
+    fun moveItem(shelfId: String, itemKey: String, delta: Int) {
+        val shelf = shelves.value.firstOrNull { it.id == shelfId } ?: return
+        val items = shelf.items()
+        val index = items.indexOfFirst { it.key == itemKey }
+        if (index < 0 || index + delta !in items.indices) return
+        val moved = items.toMutableList().apply { add(index + delta, removeAt(index)) }
+        reorderFilms(shelfId, moved.flatOrder())
+    }
+
+    fun reorderFilms(shelfId: String, order: List<String>) {
+        updateShelf(shelfId) { shelf ->
+            val byId = shelf.films.associateBy { it.jwId }
+            if (order.toSet() != byId.keys || order.size != byId.size) shelf else shelf.copy(films = order.map { byId.getValue(it) })
+        }
+        send("reorderFilms") { put("shelf", shelfId); put("order", JsonArray(order.map(::JsonPrimitive))) }
+    }
+
+    fun setShuffle(shelfId: String, shuffle: Boolean) {
+        updateShelf(shelfId) { it.copy(shuffle = shuffle) }
+        send("setShuffle") { put("shelf", shelfId); put("shuffle", shuffle) }
+    }
+
+    /** Groups films on a shelf into a new set; returns its ID. */
+    fun createSet(shelfId: String, name: String, films: List<String>): String {
+        val id = UUID.randomUUID().toString().replace("-", "").take(8)
+        val clean = name.trim().ifEmpty { "Box set" }
+        updateShelf(shelfId) { shelf ->
+            val members = films.distinct().filter { jwId -> shelf.films.any { it.jwId == jwId } }
+            val others = shelf.sets.map { set -> set.copy(films = set.films - members.toSet()) }
+            shelf.copy(sets = others + FilmSet(id, clean, members)).withCleanSets().gathered(id)
+        }
+        send("createSet") { put("shelf", shelfId); put("id", id); put("name", clean); put("films", JsonArray(films.map(::JsonPrimitive))) }
+        return id
+    }
+
+    fun renameSet(shelfId: String, setId: String, name: String) {
+        updateShelf(shelfId) { shelf -> shelf.copy(sets = shelf.sets.map { if (it.id == setId) it.copy(name = name.trim().ifEmpty { it.name }) else it }) }
+        send("renameSet") { put("shelf", shelfId); put("set", setId); put("name", name) }
+    }
+
+    fun ungroupSet(shelfId: String, setId: String) {
+        updateShelf(shelfId) { shelf -> shelf.copy(sets = shelf.sets.filterNot { it.id == setId }) }
+        send("ungroupSet") { put("shelf", shelfId); put("set", setId) }
+    }
+
+    fun addToSet(shelfId: String, setId: String, jwId: String) {
+        updateShelf(shelfId) { shelf ->
+            val sets = shelf.sets.map { set ->
+                val without = set.films - jwId
+                if (set.id == setId) set.copy(films = without + jwId) else set.copy(films = without)
+            }
+            shelf.copy(sets = sets).withCleanSets().gathered(setId)
+        }
+        send("addToSet") { put("shelf", shelfId); put("set", setId); put("jwId", jwId) }
+    }
+
+    fun removeFromSet(shelfId: String, jwId: String) {
+        updateShelf(shelfId) { shelf -> shelf.copy(sets = shelf.sets.map { it.copy(films = it.films - jwId) }).withCleanSets() }
+        send("removeFromSet") { put("shelf", shelfId); put("jwId", jwId) }
+    }
+
+    /** Moves a film earlier or later within its set. */
+    fun moveInSet(shelfId: String, setId: String, jwId: String, delta: Int) {
+        val set = shelves.value.firstOrNull { it.id == shelfId }?.sets?.firstOrNull { it.id == setId } ?: return
+        val order = set.films.move(set.films.indexOf(jwId), delta)
+        if (order == set.films) return
+        updateShelf(shelfId) { shelf -> shelf.copy(sets = shelf.sets.map { if (it.id == setId) it.copy(films = order) else it }).gathered(setId) }
+        send("reorderSet") { put("shelf", shelfId); put("set", setId); put("order", JsonArray(order.map(::JsonPrimitive))) }
     }
 
     fun moveFilm(shelfId: String, jwId: String, delta: Int) {

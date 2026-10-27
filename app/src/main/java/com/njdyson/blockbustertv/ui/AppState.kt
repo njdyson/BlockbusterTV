@@ -6,6 +6,7 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.njdyson.blockbustertv.BuildConfig
@@ -34,6 +35,7 @@ sealed interface Screen {
     data object LinkAccount : Screen
     data object Settings : Screen
     data object LinkLab : Screen
+    data class BoxSet(val shelfId: String, val setId: String) : Screen
 }
 
 /** App-wide state: shelves, film data, and Home's scroll and focus so Back returns to the same box. */
@@ -60,6 +62,20 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
     fun shelfState(shelfId: String): LazyListState = shelfStates.getOrPut(shelfId) { LazyListState() }
     val homeListState = LazyListState()
     var focusedKey by mutableStateOf<String?>(null)
+
+    /**
+     * Fixes the order of shuffled shelves for a session: new when the app starts, and when
+     * it comes back after half an hour or more away, so the shelves feel fresh each time.
+     */
+    var shuffleSeed by mutableLongStateOf(System.nanoTime())
+        private set
+
+    fun reshuffleIfAwayFor(awayMs: Long) {
+        if (awayMs >= 30 * 60 * 1000L) {
+            shuffleSeed = System.nanoTime()
+            focusedKey = null
+        }
+    }
 
     private val uiPrefs = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
 
