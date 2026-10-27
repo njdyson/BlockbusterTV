@@ -41,6 +41,13 @@ purchases appear under Library. Owned films are saved with the shelves.
 Trailers need a free TMDB API key: add it as the `TMDB_API_KEY` Actions secret
 (or in `secrets.properties` for local builds).
 
+## Account server and phone app
+`server/` is a PocketBase app for `https://blockbuster.psybob.uk`: user accounts,
+each user's shelves and owned films, an installable phone app (PWA), and linking TVs
+(Settings > Link to your account shows a code to approve in the phone app). Linked
+TVs sync with the account; unlinked TVs keep working on their own, editable from a
+phone on the same Wi-Fi. Setup instructions: [server/README.md](server/README.md).
+
 ## Link Lab
 Settings > Link Lab fires candidate deep links for a real film on each UK service
 and records what happened. Its **Inspect** cards list the link formats each installed

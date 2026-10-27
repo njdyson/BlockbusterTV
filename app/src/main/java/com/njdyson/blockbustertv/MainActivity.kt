@@ -9,11 +9,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
 import com.njdyson.blockbustertv.linklab.LinkLabScreen
 import com.njdyson.blockbustertv.ui.AppState
 import com.njdyson.blockbustertv.ui.BlockbusterTheme
 import com.njdyson.blockbustertv.ui.DetailScreen
 import com.njdyson.blockbustertv.ui.HomeScreen
+import com.njdyson.blockbustertv.ui.LinkAccountScreen
 import com.njdyson.blockbustertv.ui.PhoneEditScreen
 import com.njdyson.blockbustertv.ui.Screen
 import com.njdyson.blockbustertv.ui.SearchScreen
@@ -33,9 +35,17 @@ class MainActivity : ComponentActivity() {
             val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
             LaunchedEffect(Unit) {
                 app.load()
-                app.server.startSafely()
+                if (!app.linked) app.server.startSafely()
                 // Shelves can change from the phone at any time: fetch data for new films.
                 app.shelfStore.shelves.collect { app.fetchMissing(it) }
+            }
+            // Linked TVs pick up edits from the phone app and other TVs.
+            LaunchedEffect(resumeCount.intValue) { app.sync() }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    delay(60_000)
+                    app.sync()
+                }
             }
 
             fun open(screen: Screen) { stack.add(screen) }
@@ -54,7 +64,13 @@ class MainActivity : ComponentActivity() {
                     is Screen.Detail -> app.films[screen.jwId]?.let { DetailScreen(app, it) }
                     Screen.Search -> SearchScreen(app)
                     Screen.PhoneEdit -> PhoneEditScreen(app, onDone = ::back)
-                    Screen.Settings -> SettingsScreen(app, resumeCount.intValue, onLinkLab = { open(Screen.LinkLab) })
+                    Screen.LinkAccount -> LinkAccountScreen(app, onDone = ::back)
+                    Screen.Settings -> SettingsScreen(
+                        app,
+                        resumeCount.intValue,
+                        onLinkAccount = { open(Screen.LinkAccount) },
+                        onLinkLab = { open(Screen.LinkLab) },
+                    )
                     Screen.LinkLab -> LinkLabScreen(resumeCount = resumeCount.intValue)
                 }
             }
@@ -63,8 +79,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // The phone page is served only while the app is open on the TV.
-        app?.server?.startSafely()
+        // The phone page is served only while the app is open on the TV, and only until it's linked.
+        app?.takeUnless { it.linked }?.server?.startSafely()
     }
 
     override fun onStop() {

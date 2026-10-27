@@ -28,8 +28,9 @@ import com.njdyson.blockbustertv.linklab.qrCode
 /** Shows the QR code for the phone editing page served by this stick. */
 @Composable
 fun PhoneEditScreen(app: AppState, onDone: () -> Unit) {
-    val running = remember { app.server.startSafely() }
-    val url = remember { app.server.url }
+    // Linked TVs send people to the account's phone app; otherwise this TV serves the page itself.
+    val running = remember { app.linked || app.server.startSafely() }
+    val url = remember { if (app.linked) app.serverUrl else app.server.url }
     val done = remember { FocusRequester() }
     Row(
         Modifier.fillMaxSize().background(NightNavy).padding(48.dp),
@@ -50,6 +51,11 @@ fun PhoneEditScreen(app: AppState, onDone: () -> Unit) {
             when {
                 url == null -> Text("This stick isn't connected to a network.", color = Color.White, fontSize = 16.sp)
                 !running -> Text("Couldn't start the editing server. Try closing and reopening the app.", color = Color.White, fontSize = 16.sp)
+                app.linked -> {
+                    Text("1. Scan the code, or open ${app.serverUrl.removePrefix("https://")} on your phone, and sign in.", color = Color.White, fontSize = 16.sp)
+                    Text("2. Install it: Add to Home Screen (iPhone: Share menu; Android: browser menu).", color = Color.White, fontSize = 16.sp)
+                    Text("3. Search, add, rename and reorder from anywhere. The TV picks up changes within a minute.", color = Color.White, fontSize = 16.sp)
+                }
                 else -> {
                     Text("1. Connect your phone to the same Wi-Fi as this TV.", color = Color.White, fontSize = 16.sp)
                     Text("2. Scan the code with your phone's camera.", color = Color.White, fontSize = 16.sp)

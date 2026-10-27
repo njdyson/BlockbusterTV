@@ -1,7 +1,15 @@
 package com.njdyson.blockbustertv.data
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
@@ -33,8 +41,19 @@ data class ShelvesFile(
 /**
  * The user's shelves, saved as JSON in the app's files. The same format is the
  * backup/export file. Thread-safe: the phone editing server changes it from its own threads.
+ *
+ * When the TV is linked to an account ([remote] set), each edit is applied here straight
+ * away and also sent to the server, whose reply then becomes the saved copy.
  */
 class ShelfStore(context: Context) {
+    @Volatile
+    var remote: RemoteLibrary? = null
+    var onSyncError: (Exception) -> Unit = {}
+
+    // One at a time, in order, so edits reach the server in the order they were made.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val file = File(context.filesDir, "shelves.json")
     private val saved = load(context)
@@ -45,36 +64,74 @@ class ShelfStore(context: Context) {
 
     fun export(): String = json.encodeToString(ShelvesFile.serializer(), snapshot())
 
-    private fun snapshot() = ShelvesFile(shelves = _shelves.value, owned = _owned.value.sorted())
+    fun snapshot() = ShelvesFile(shelves = _shelves.value, owned = _owned.value.sorted())
+
+    /** Replaces everything with the server's copy. */
+    @Synchronized
+    fun replace(file: ShelvesFile) {
+        _shelves.value = file.shelves
+        _owned.value = file.owned.toSet()
+        save()
+    }
 
     @Synchronized
     fun setOwned(jwId: String, owned: Boolean) {
         _owned.value = if (owned) _owned.value + jwId else _owned.value - jwId
         save()
+        send("setOwned") { put("jwId", jwId); put("owned", owned) }
     }
 
     fun addShelf(name: String): String {
-        val id = UUID.randomUUID().toString().take(8)
-        update { it + Shelf(id, name.trim().ifEmpty { "New shelf" }, emptyList()) }
+        // Lower-case letters and digits, which the server accepts as the shelf's ID too.
+        val id = UUID.randomUUID().toString().replace("-", "").take(8)
+        val clean = name.trim().ifEmpty { "New shelf" }
+        update { it + Shelf(id, clean, emptyList()) }
+        send("addShelf") { put("id", id); put("name", clean) }
         return id
     }
 
-    fun renameShelf(id: String, name: String) = updateShelf(id) { it.copy(name = name.trim().ifEmpty { it.name }) }
-
-    fun deleteShelf(id: String) = update { list -> list.filterNot { it.id == id } }
-
-    fun moveShelf(id: String, delta: Int) = update { list -> list.move(list.indexOfFirst { it.id == id }, delta) }
-
-    fun addFilm(shelfId: String, film: ShelfFilm) = updateShelf(shelfId) { shelf ->
-        if (shelf.films.any { it.jwId == film.jwId }) shelf else shelf.copy(films = shelf.films + film)
+    fun renameShelf(id: String, name: String) {
+        updateShelf(id) { it.copy(name = name.trim().ifEmpty { it.name }) }
+        send("renameShelf") { put("shelf", id); put("name", name) }
     }
 
-    fun removeFilm(shelfId: String, jwId: String) = updateShelf(shelfId) { shelf ->
-        shelf.copy(films = shelf.films.filterNot { it.jwId == jwId })
+    fun deleteShelf(id: String) {
+        update { list -> list.filterNot { it.id == id } }
+        send("deleteShelf") { put("shelf", id) }
     }
 
-    fun moveFilm(shelfId: String, jwId: String, delta: Int) = updateShelf(shelfId) { shelf ->
-        shelf.copy(films = shelf.films.move(shelf.films.indexOfFirst { it.jwId == jwId }, delta))
+    fun moveShelf(id: String, delta: Int) {
+        update { list -> list.move(list.indexOfFirst { it.id == id }, delta) }
+        send("moveShelf") { put("shelf", id); put("delta", delta) }
+    }
+
+    fun addFilm(shelfId: String, film: ShelfFilm) {
+        updateShelf(shelfId) { shelf ->
+            if (shelf.films.any { it.jwId == film.jwId }) shelf else shelf.copy(films = shelf.films + film)
+        }
+        send("addFilm") { put("shelf", shelfId); put("film", json.encodeToJsonElement(ShelfFilm.serializer(), film)) }
+    }
+
+    fun removeFilm(shelfId: String, jwId: String) {
+        updateShelf(shelfId) { shelf -> shelf.copy(films = shelf.films.filterNot { it.jwId == jwId }) }
+        send("removeFilm") { put("shelf", shelfId); put("jwId", jwId) }
+    }
+
+    fun moveFilm(shelfId: String, jwId: String, delta: Int) {
+        updateShelf(shelfId) { shelf -> shelf.copy(films = shelf.films.move(shelf.films.indexOfFirst { it.jwId == jwId }, delta)) }
+        send("moveFilm") { put("shelf", shelfId); put("jwId", jwId); put("delta", delta) }
+    }
+
+    private fun send(op: String, fields: JsonObjectBuilder.() -> Unit) {
+        val server = remote ?: return
+        val body = buildJsonObject { put("op", op); fields() }
+        syncScope.launch {
+            try {
+                replace(server.op(body))
+            } catch (e: Exception) {
+                onSyncError(e)
+            }
+        }
     }
 
     private fun updateShelf(id: String, change: (Shelf) -> Shelf) = update { list -> list.map { if (it.id == id) change(it) else it } }

@@ -24,7 +24,7 @@ import com.njdyson.blockbustertv.update.UpdateButton
 import com.njdyson.blockbustertv.update.Updater
 
 @Composable
-fun SettingsScreen(app: AppState, resumeCount: Int, onLinkLab: () -> Unit) {
+fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, onLinkLab: () -> Unit) {
     val first = remember { FocusRequester() }
     Column(
         Modifier.fillMaxSize().background(NightNavy).padding(horizontal = 48.dp, vertical = 32.dp),
@@ -41,6 +41,22 @@ fun SettingsScreen(app: AppState, resumeCount: Int, onLinkLab: () -> Unit) {
             color = Color.White.copy(alpha = 0.7f),
             fontSize = 13.sp,
         )
+
+        if (app.linked) {
+            Text(
+                "Linked to your account at ${app.serverUrl.removePrefix("https://")}: shelves sync with the phone app and your other TVs.",
+                color = Color.White,
+                fontSize = 14.sp,
+            )
+            OutlinedButton(onClick = { app.unlink() }) { Text("Unlink this TV") }
+        } else {
+            Text(
+                "Not linked: shelves are saved on this TV only. Link it to your account to edit from anywhere and share shelves between TVs.",
+                color = Color.White,
+                fontSize = 14.sp,
+            )
+            OutlinedButton(onClick = onLinkAccount) { Text("Link to your account") }
+        }
 
         OutlinedButton(onClick = { app.refresh() }) { Text("Refresh films and availability now") }
         app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }

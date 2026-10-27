@@ -26,6 +26,9 @@ android {
         }
         val tmdbKey = System.getenv("TMDB_API_KEY") ?: secrets.getProperty("TMDB_API_KEY", "")
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
+        // The account server (server/ in this repo); BBTV_SERVER_URL overrides it for testing.
+        val serverUrl = System.getenv("BBTV_SERVER_URL") ?: "https://blockbuster.psybob.uk"
+        buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
         buildConfigField("String", "GIT_SHA", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
     }
 
@@ -73,4 +76,5 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.nanohttpd)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    testImplementation(libs.junit)
 }
