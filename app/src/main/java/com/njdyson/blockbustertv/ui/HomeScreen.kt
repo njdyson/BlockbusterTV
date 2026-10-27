@@ -62,7 +62,7 @@ fun HomeScreen(app: AppState, onOpen: (Film) -> Unit, onSettings: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 OutlinedButton(onClick = onSettings) { Text("Settings") }
             }
-            Preview(focusedFilm, Modifier.padding(horizontal = 48.dp).height(150.dp))
+            Preview(focusedFilm, Modifier.padding(horizontal = 48.dp).height(128.dp))
             LazyColumn(
                 state = app.homeListState,
                 contentPadding = PaddingValues(bottom = 48.dp),
@@ -74,7 +74,7 @@ fun HomeScreen(app: AppState, onOpen: (Film) -> Unit, onSettings: () -> Unit) {
                         LazyRow(
                             state = app.shelfStates[shelfIndex],
                             contentPadding = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
-                            horizontalArrangement = Arrangement.spacedBy(22.dp),
+                            horizontalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
                             itemsIndexed(collection.films, key = { _, entry -> entry.jwId }) { i, entry ->
                                 val key = "$shelfIndex:${entry.jwId}"
@@ -114,7 +114,7 @@ private fun Preview(film: Film?, modifier: Modifier) {
             film.synopsis.orEmpty(),
             color = Color.White.copy(alpha = 0.85f),
             fontSize = 14.sp,
-            maxLines = 3,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(0.6f),
         )
@@ -140,7 +140,7 @@ private fun VhsBox(film: Film?, fallbackTitle: String, requestFocus: Boolean, on
     Surface(
         onClick = onClick,
         modifier = Modifier
-            .width(140.dp)
+            .width(128.dp)
             .focusRequester(focusRequester)
             .onFocusChanged { if (it.isFocused) onFocused() },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(6.dp)),
@@ -154,7 +154,7 @@ private fun VhsBox(film: Film?, fallbackTitle: String, requestFocus: Boolean, on
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
     ) {
         Column {
-            Box(Modifier.fillMaxWidth().height(200.dp).padding(5.dp)) {
+            Box(Modifier.fillMaxWidth().height(184.dp).padding(5.dp)) {
                 AsyncImage(
                     model = film?.poster,
                     contentDescription = film?.title ?: fallbackTitle,
