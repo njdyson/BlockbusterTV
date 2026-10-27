@@ -63,6 +63,8 @@
   .shelf { background: var(--shelf); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
   .shelf-name { font-weight: 800; font-size: 18px; overflow-wrap: anywhere; }
   .shelf-tools { display: flex; gap: 6px; margin-top: 8px; }
+  .shelf-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .shelf-head .more { font-size: 20px; line-height: 1; padding: 4px 12px; flex: none; }
   .films { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; scroll-snap-type: x proximity; }
   .film { flex: none; width: 96px; scroll-snap-align: start; position: relative; }
   .film img, .film .noposter { width: 96px; height: 144px; object-fit: cover; border-radius: 5px; background: #000; display: block; }
@@ -460,19 +462,11 @@ let openSet = null;   // id of the set whose panel is open
 function renderShelf(shelf) {
   const items = displayItems(shelf);
   const picking = selecting && selecting.shelf === shelf.id;
-  const head = el("div", {},
+  const head = el("div", { className: "shelf-head" },
     el("div", { className: "shelf-name", textContent: shelf.name }),
-    el("div", { className: "shelf-tools" },
-      el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
-        const name = prompt("Shelf name", shelf.name);
-        if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
-      } }),
-      el("button", { className: "ghost small", textContent: picking ? "Cancel" : "Make a set", disabled: shelf.films.length < 1,
-        onclick: () => { selecting = picking ? null : { shelf: shelf.id, chosen: new Set() }; render(); } }),
-      el("button", { className: "ghost small", textContent: "✕", title: "Delete shelf", onclick: () => {
-        if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
-      } }),
-    ));
+    picking
+      ? el("button", { className: "ghost small", textContent: "Cancel", onclick: () => { selecting = null; render(); } })
+      : el("button", { className: "ghost small more", textContent: "⋯", title: "Shelf options", onclick: () => openShelfMenu(shelf) }));
 
   const tile = (item, j) => {
     if (item.type === "set") {
@@ -730,6 +724,29 @@ function openSheet(film) {
       ));
   };
   draw();
+  $("sheet").hidden = false;
+}
+
+// Shelf options (Rename, Make a set, Delete) in a bottom sheet, to keep the shelf header tidy.
+function openShelfMenu(shelf) {
+  const close = () => { $("sheet").hidden = true; $("sheet").replaceChildren(); };
+  const item = (label, onclick, disabled) => el("button", { className: "ghost", disabled, onclick: () => { close(); onclick(); } },
+    el("span", { textContent: label }), el("span"));
+  $("sheet").replaceChildren(
+    el("div", { className: "scrim", onclick: close }),
+    el("div", { className: "sheet" },
+      el("div", { className: "sheet-head" }, el("div", { className: "t", textContent: shelf.name })),
+      el("div", { className: "choices" },
+        item("Rename", () => {
+          const name = prompt("Shelf name", shelf.name);
+          if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
+        }),
+        item("Make a set", () => { selecting = { shelf: shelf.id, chosen: new Set() }; render(); }, shelf.films.length < 1),
+        item("Delete shelf", () => {
+          if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
+        }),
+        el("button", { className: "ghost", onclick: close }, el("span", { textContent: "Cancel" }), el("span"))),
+    ));
   $("sheet").hidden = false;
 }
 
