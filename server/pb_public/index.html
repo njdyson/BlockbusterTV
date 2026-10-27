@@ -481,10 +481,7 @@ function renderShelf(shelf) {
         el("button", { className: "result boxset", onclick: () => { openSet = openSet === set.id ? null : set.id; render(); } },
           poster(item.films[0] || { title: set.name }),
           el("span", { className: "setcount", textContent: `${item.films.length} FILMS` })),
-        el("div", { className: "name setname", textContent: set.name }),
-        el("div", { className: "tools" },
-          el("button", { className: "ghost", textContent: openSet === set.id ? "Close" : "Open", onclick: () => { openSet = openSet === set.id ? null : set.id; render(); } }),
-        ));
+        el("div", { className: "name setname", textContent: set.name }));
     }
     const f = item.film;
     const chosen = picking && selecting.chosen.has(f.jwId);
@@ -496,11 +493,7 @@ function renderShelf(shelf) {
           } }, poster(f), el("span", { className: "pick" + (chosen ? " on" : ""), textContent: chosen ? "✓" : "" }))
         : el("button", { className: "result", onclick: () => openFilm(f) }, poster(f)),
       ...(library.owned.includes(f.jwId) ? [el("span", { className: "owned", textContent: "OWNED" })] : []),
-      el("div", { className: "name", textContent: f.title }),
-      picking ? "" : el("div", { className: "tools" },
-        el("button", { className: "ghost", textContent: "✕ Remove",
-          onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
-      ));
+      el("div", { className: "name", textContent: f.title }));
   };
 
   const parts = [head];
