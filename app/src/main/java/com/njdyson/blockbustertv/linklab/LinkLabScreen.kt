@@ -125,7 +125,7 @@ fun LinkLabScreen(resumeCount: Int) {
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
-                Header(device, apps, lastError, onReport = { showReport = true }, onClear = {
+                Header(device, apps, lastError, resumeCount, onReport = { showReport = true }, onClear = {
                     store.clear()
                     results = emptyMap()
                 })
@@ -171,6 +171,7 @@ private fun Header(
     device: DeviceInfo,
     apps: List<String>,
     lastError: String?,
+    resumeCount: Int,
     onReport: () -> Unit,
     onClear: () -> Unit,
 ) {
@@ -187,7 +188,7 @@ private fun Header(
             Spacer(Modifier.width(12.dp))
             OutlinedButton(onClick = onClear) { Text("Clear results") }
             Spacer(Modifier.width(12.dp))
-            UpdateButton()
+            UpdateButton(resumeCount)
         }
         Text(
             "$device · build ${Updater.currentVersion} (${Updater.currentSha})",

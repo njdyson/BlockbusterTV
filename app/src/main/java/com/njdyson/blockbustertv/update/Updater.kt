@@ -27,7 +27,8 @@ object Updater {
     val currentSha: String get() = BuildConfig.GIT_SHA
 
     suspend fun latest(): RemoteVersion = withContext(Dispatchers.IO) {
-        json.decodeFromString<RemoteVersion>(open("$RELEASE/version.json").inputStream.bufferedReader().use { it.readText() })
+        // The timestamp defeats any cache between the stick and GitHub.
+        json.decodeFromString<RemoteVersion>(open("$RELEASE/version.json?t=${System.currentTimeMillis()}").inputStream.bufferedReader().use { it.readText() })
     }
 
     /** Downloads the latest APK into the cache, reporting progress from 0 to 1. */

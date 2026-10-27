@@ -12,22 +12,25 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private sealed interface UpdateState {
     data object Idle : UpdateState
     data object Checking : UpdateState
-    data object UpToDate : UpdateState
+    data class UpToDate(val checkedAt: String) : UpdateState
     data class Available(val version: Int) : UpdateState
     data class Downloading(val progress: Float) : UpdateState
     data class Failed(val message: String) : UpdateState
 }
 
 /**
- * Checks GitHub quietly on launch. Pressing it checks again, and if a newer build
- * exists, downloads it and opens the installer.
+ * Checks GitHub quietly on launch and whenever the app comes back to the front. Pressing
+ * it checks again, and if a newer build exists, downloads it and opens the installer.
  */
 @Composable
-fun UpdateButton() {
+fun UpdateButton(resumeCount: Int) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
@@ -39,7 +42,7 @@ fun UpdateButton() {
             state = UpdateState.Available(latest.versionCode)
             latest.versionCode
         } else {
-            state = UpdateState.UpToDate
+            state = UpdateState.UpToDate(SimpleDateFormat("HH:mm", Locale.UK).format(Date()))
             null
         }
     } catch (e: Exception) {
@@ -47,7 +50,9 @@ fun UpdateButton() {
         null
     }
 
-    LaunchedEffect(Unit) { check() }
+    LaunchedEffect(resumeCount) {
+        if (state !is UpdateState.Downloading && state !is UpdateState.Available) check()
+    }
 
     val onClick: () -> Unit = {
         if (state !is UpdateState.Checking && state !is UpdateState.Downloading) {
@@ -67,7 +72,7 @@ fun UpdateButton() {
     val label = when (val s = state) {
         UpdateState.Idle -> "Check for update"
         UpdateState.Checking -> "Checking…"
-        UpdateState.UpToDate -> "Up to date (build ${Updater.currentVersion})"
+        is UpdateState.UpToDate -> "Up to date: build ${Updater.currentVersion} (checked ${s.checkedAt})"
         is UpdateState.Available -> "Install update: build ${s.version}"
         is UpdateState.Downloading -> "Downloading… ${(s.progress * 100).toInt()}%"
         is UpdateState.Failed -> "Update check failed: ${s.message.take(40)}"
