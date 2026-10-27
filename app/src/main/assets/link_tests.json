@@ -132,6 +132,26 @@
         {
           "label": "Web URL (no package)",
           "uri": "http://www.bbc.co.uk/iplayer/episode/m00327nr"
+        },
+        {
+          "label": "Guess: amzn playback path",
+          "uri": "amzn://uk.co.bbc.iplayer/playback/0/m00327nr/-1",
+          "package": "uk.co.bbc.iplayer"
+        },
+        {
+          "label": "Guess: amzn iplayer/episode",
+          "uri": "amzn://uk.co.bbc.iplayer/iplayer/episode/m00327nr",
+          "package": "uk.co.bbc.iplayer"
+        },
+        {
+          "label": "Guess: amzn episode",
+          "uri": "amzn://uk.co.bbc.iplayer/episode/m00327nr",
+          "package": "uk.co.bbc.iplayer"
+        },
+        {
+          "label": "Guess: amzn ?episodeId=",
+          "uri": "amzn://uk.co.bbc.iplayer?episodeId=m00327nr",
+          "package": "uk.co.bbc.iplayer"
         }
       ],
       "poster": "https://images.justwatch.com/poster/334137827/s332/the-substance.jpg",
@@ -154,6 +174,26 @@
         {
           "label": "Web URL (no package)",
           "uri": "https://www.itv.com/watch/coraline/10a3200"
+        },
+        {
+          "label": "Guess: old ITV Hub URL",
+          "uri": "https://www.itv.com/hub/coraline/10a3200",
+          "package": "air.ITVMobilePlayer"
+        },
+        {
+          "label": "Guess: watch URL + episode",
+          "uri": "https://www.itv.com/watch/coraline/10a3200/10a3200a0001",
+          "package": "air.ITVMobilePlayer"
+        },
+        {
+          "label": "Guess: amzn playvideo",
+          "uri": "amzn://air.ITVMobilePlayer/playvideo?productionId=10/3200",
+          "package": "air.ITVMobilePlayer"
+        },
+        {
+          "label": "Guess: amzn watch path",
+          "uri": "amzn://air.ITVMobilePlayer/watch/coraline/10a3200",
+          "package": "air.ITVMobilePlayer"
         }
       ],
       "poster": "https://images.justwatch.com/poster/279313986/s332/coraline.jpg",
@@ -172,6 +212,21 @@
         {
           "label": "Web URL (no package)",
           "uri": "https://www.channel4.com/programmes/jennifers-body/on-demand/48988-001"
+        },
+        {
+          "label": "Guess: channel4:// + web path",
+          "uri": "channel4://www.channel4.com/programmes/jennifers-body/on-demand/48988-001",
+          "package": "com.channel4.ondemand"
+        },
+        {
+          "label": "Guess: channel4://programmes",
+          "uri": "channel4://programmes/jennifers-body/on-demand/48988-001",
+          "package": "com.channel4.ondemand"
+        },
+        {
+          "label": "Guess: channel4:// brand only",
+          "uri": "channel4://programmes/jennifers-body",
+          "package": "com.channel4.ondemand"
         }
       ],
       "poster": "https://images.justwatch.com/poster/249771502/s332/jennifers-body.jpg",
@@ -218,6 +273,32 @@
       "backdrop": "https://images.justwatch.com/backdrop/347902195/s1440/the-big-short.jpg"
     },
     {
+      "film": "Practical Magic (1998)",
+      "imdbId": "tt0120791",
+      "poster": "https://images.justwatch.com/poster/11005490/s332/practical-magic.jpg",
+      "backdrop": "https://images.justwatch.com/backdrop/11005486/s1440/practical-magic.jpg",
+      "service": "firetvsearch",
+      "serviceName": "Fire TV search",
+      "packages": [
+        "com.amazon.tv.launcher"
+      ],
+      "links": [
+        {
+          "label": "Global search intent",
+          "uri": "intent:#Intent;action=android.search.action.GLOBAL_SEARCH;S.query=Practical%20Magic;end"
+        },
+        {
+          "label": "Search intent to launcher",
+          "uri": "intent:#Intent;action=android.intent.action.SEARCH;package=com.amazon.tv.launcher;S.query=Practical%20Magic;end"
+        },
+        {
+          "label": "Guess: amzn launcher search",
+          "uri": "amzn://com.amazon.tv.launcher/search?query=Practical+Magic",
+          "package": "com.amazon.tv.launcher"
+        }
+      ]
+    },
+    {
       "poster": "https://images.justwatch.com/poster/302449148/s332/inception.jpg",
       "backdrop": "https://images.justwatch.com/backdrop/275196554/s1440/inception.jpg",
       "service": "youtube",
@@ -249,6 +330,16 @@
         {
           "label": "Search for film (buy flow)",
           "uri": "https://www.youtube.com/results?search_query=Inception+2010"
+        },
+        {
+          "label": "youtube://search (from manifest)",
+          "uri": "youtube://search?q=Inception+2010",
+          "package": "com.amazon.firetv.youtube"
+        },
+        {
+          "label": "youtube://search ?search_query=",
+          "uri": "youtube://search?search_query=Inception+2010",
+          "package": "com.amazon.firetv.youtube"
         }
       ]
     }

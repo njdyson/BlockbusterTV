@@ -10,6 +10,7 @@ Usage: python3 tools/fetch_link_tests.py
 """
 import json
 import os
+import urllib.parse
 import urllib.request
 
 API = "https://apis.justwatch.com/graphql"
@@ -109,7 +110,45 @@ def manual_variants(service, web_url):
         out += [
             ("Spec: app.primevideo.com detail", f"https://app.primevideo.com/detail?gti={gti}", None),
         ]
+    # Round 2 guesses, from the link formats each Fire TV app declares in its manifest
+    # (Link Lab's Inspect card). The apps accept any path, so these try likely shapes.
+    if service == "iplayer" and "/episode/" in web_url:
+        pid = web_url.rstrip("/").split("/")[-1]
+        out += [
+            ("Guess: amzn playback path", f"amzn://uk.co.bbc.iplayer/playback/0/{pid}/-1", "uk.co.bbc.iplayer"),
+            ("Guess: amzn iplayer/episode", f"amzn://uk.co.bbc.iplayer/iplayer/episode/{pid}", "uk.co.bbc.iplayer"),
+            ("Guess: amzn episode", f"amzn://uk.co.bbc.iplayer/episode/{pid}", "uk.co.bbc.iplayer"),
+            ("Guess: amzn ?episodeId=", f"amzn://uk.co.bbc.iplayer?episodeId={pid}", "uk.co.bbc.iplayer"),
+        ]
+    if service == "itvx" and "/watch/" in web_url:
+        slug, prod = web_url.rstrip("/").split("/")[-2:]
+        prod_slash = prod.replace("a", "/")
+        out += [
+            ("Guess: old ITV Hub URL", f"https://www.itv.com/hub/{slug}/{prod}", "air.ITVMobilePlayer"),
+            ("Guess: watch URL + episode", f"https://www.itv.com/watch/{slug}/{prod}/{prod}a0001", "air.ITVMobilePlayer"),
+            ("Guess: amzn playvideo", f"amzn://air.ITVMobilePlayer/playvideo?productionId={prod_slash}", "air.ITVMobilePlayer"),
+            ("Guess: amzn watch path", f"amzn://air.ITVMobilePlayer/watch/{slug}/{prod}", "air.ITVMobilePlayer"),
+        ]
+    if service == "channel4" and "/programmes/" in web_url:
+        path = web_url.split("channel4.com", 1)[1]
+        slug = path.split("/")[2]
+        out += [
+            ("Guess: channel4:// + web path", f"channel4://www.channel4.com{path}", "com.channel4.ondemand"),
+            ("Guess: channel4://programmes", f"channel4://programmes/{path.split('/programmes/', 1)[1]}", "com.channel4.ondemand"),
+            ("Guess: channel4:// brand only", f"channel4://programmes/{slug}", "com.channel4.ondemand"),
+        ]
     return out
+
+
+def fire_tv_search(title):
+    """Fire TV's own search lists every app that carries a film: a possible universal fallback."""
+    q = title.replace(" ", "+")
+    extra = urllib.parse.quote(title)  # intent: extras are percent-decoded, "+" would stay literal
+    return [
+        {"label": "Global search intent", "uri": f"intent:#Intent;action=android.search.action.GLOBAL_SEARCH;S.query={extra};end"},
+        {"label": "Search intent to launcher", "uri": f"intent:#Intent;action=android.intent.action.SEARCH;package=com.amazon.tv.launcher;S.query={extra};end"},
+        {"label": "Guess: amzn launcher search", "uri": f"amzn://com.amazon.tv.launcher/search?query={q}", "package": "com.amazon.tv.launcher"},
+    ]
 
 
 def main():
@@ -141,6 +180,16 @@ def main():
         })
         print(f"{name}: {label}, {len(links)} links")
 
+    now = next((t for t in tests if t["service"] == "now"), None)
+    if now:
+        tests.append({
+            **{k: now[k] for k in ("film", "imdbId", "poster", "backdrop")},
+            "service": "firetvsearch",
+            "serviceName": "Fire TV search",
+            "packages": ["com.amazon.tv.launcher"],
+            "links": fire_tv_search(now["film"].rsplit(" (", 1)[0]),
+        })
+
     # YouTube: trailer, the spec's purchase search hand-off, and the film's
     # YouTube Movies store page (store video IDs come from Wikidata P1651).
     inception = gql(ART_QUERY, {"q": "Inception"})["popularTitles"]["edges"][0]["node"]["content"]
@@ -157,6 +206,8 @@ def main():
             {"label": "Store page via vnd.youtube://", "uri": "vnd.youtube://bewVnEugEqE"},
             {"label": "Store page via https watch URL", "uri": "https://www.youtube.com/watch?v=bewVnEugEqE"},
             {"label": "Search for film (buy flow)", "uri": "https://www.youtube.com/results?search_query=Inception+2010"},
+            {"label": "youtube://search (from manifest)", "uri": "youtube://search?q=Inception+2010", "package": "com.amazon.firetv.youtube"},
+            {"label": "youtube://search ?search_query=", "uri": "youtube://search?search_query=Inception+2010", "package": "com.amazon.firetv.youtube"},
         ],
     })
 
