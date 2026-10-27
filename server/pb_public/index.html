@@ -52,7 +52,7 @@
   /* Search results: a grid of posters, tap one to choose a shelf. minmax(0, …) stops
      long titles widening the page. */
   .results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-  .result { all: unset; cursor: pointer; display: block; min-width: 0; -webkit-tap-highlight-color: transparent; }
+  .result { all: unset; cursor: pointer; display: block; width: 100%; min-width: 0; -webkit-tap-highlight-color: transparent; }
   .result .poster { position: relative; }
   .result img, .result .noposter { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 6px; background: #000; display: block; }
   .result .title { font-weight: 700; font-size: 13px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -96,7 +96,15 @@
   .choices button.on { background: rgba(76,175,80,.25); color: #fff; }
   /* Search: people, filters, overview */
   .search-row { display: flex; gap: 8px; }
-  .search-row input { flex: 1; min-width: 0; }
+  .search-field { position: relative; flex: 1; min-width: 0; }
+  .search-field input { width: 100%; padding-right: 44px; }
+  input[type=search]::-webkit-search-cancel-button { display: none; }
+  .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; padding: 0;
+               border-radius: 50%; background: #d9dce6; color: #333; font-size: 15px; font-weight: 800; line-height: 30px; }
+  /* People matching the search: one compact row. */
+  #people { flex-wrap: nowrap; overflow-x: auto; gap: 6px; margin-top: 8px; scrollbar-width: none; }
+  #people::-webkit-scrollbar { display: none; }
+  #people button.chip { flex: none; padding: 5px 10px; font-size: 13px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .chips:empty { display: none; }
   button.chip { background: rgba(255,255,255,.12); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 600; }
@@ -190,7 +198,10 @@
 
   <h2>ADD A FILM</h2>
   <div class="search-row">
-    <input type="search" id="q" placeholder="Film, actor or director" autocomplete="off" autocorrect="off" enterkeyhint="search">
+    <div class="search-field">
+      <input type="search" id="q" placeholder="Film, actor or director" autocomplete="off" autocorrect="off" enterkeyhint="search">
+      <button class="clear-btn" id="clearSearch" title="Clear" hidden>✕</button>
+    </div>
     <button class="ghost" id="filtersBtn">Filters</button>
   </div>
   <div class="card" id="filters" hidden></div>
@@ -601,6 +612,7 @@ function renderFilters() {
 }
 
 function filtersChanged() {
+  updateClear();
   renderFilters();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(search, 250);
@@ -614,9 +626,19 @@ $("filtersBtn").onclick = () => {
 // Search as you type, ignoring answers that arrive after a newer search started.
 let searchTimer, searchSeq = 0;
 $("q").addEventListener("input", () => {
+  updateClear();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(search, 350);
 });
+
+// ✕ in the box: clears the text, the chosen person and the results (filters stay).
+function updateClear() { $("clearSearch").hidden = !$("q").value && !filters.person; }
+$("clearSearch").onclick = () => {
+  $("q").value = "";
+  filters.person = null;
+  filtersChanged();
+  $("q").focus();
+};
 $("q").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { clearTimeout(searchTimer); search(); $("q").blur(); }
 });
@@ -643,7 +665,14 @@ async function search() {
     if (seq !== searchSeq) return;
     results = found;
     renderResults();
-    $("people").replaceChildren(...people.map((person) => el("button", {
+    // Only people whose name contains every word typed, e.g. "nolan" but not "back to" → "Frédéric Back".
+    const plain = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const words = plain(q).split(/\s+/).filter(Boolean);
+    const matching = people
+      .filter((p) => words.every((w) => plain(p.name).split(/[\s.-]+/).some((part) => part.startsWith(w))))
+      .filter((p, i, all) => all.findIndex((o) => o.name === p.name) === i) // same name twice: keep the better known
+      .slice(0, 3);
+    $("people").replaceChildren(...matching.map((person) => el("button", {
       className: "chip person",
       textContent: "🎬 " + person.name,
       onclick: () => {

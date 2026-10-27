@@ -41,6 +41,7 @@ import com.njdyson.blockbustertv.data.SearchFilters
 import com.njdyson.blockbustertv.data.SearchSort
 import com.njdyson.blockbustertv.data.ShelfFilm
 import kotlinx.coroutines.delay
+import java.text.Normalizer
 
 /** Which filter's picker is open. */
 private enum class Picker { GENRE, DECADE, RATING, SERVICE, SORT }
@@ -70,7 +71,7 @@ fun SearchScreen(app: AppState) {
         message = "Searching…"
         message = try {
             results = app.justWatch.search(filters)
-            people = if (filters.person == null) app.justWatch.people(filters.text) else emptyList()
+            people = if (filters.person == null) app.justWatch.people(filters.text).filter { it.matches(filters.text) }.distinctBy { it.name }.take(3) else emptyList()
             if (results.isEmpty() && people.isEmpty()) "No films found." else null
         } catch (e: Exception) {
             "Search failed: ${e.message}"
@@ -187,4 +188,14 @@ fun SearchScreen(app: AppState) {
 private fun FilterButton(label: String, value: String?, onClick: () -> Unit) {
     if (value != null) Button(onClick = onClick) { Text("$label: $value") }
     else OutlinedButton(onClick = onClick) { Text("$label: Any") }
+}
+
+/**
+ * Whether every word typed starts a part of the person's name ("nolan", "chris nol"),
+ * so a film title like "Back to…" doesn't suggest people who happen to be called Back.
+ */
+private fun Person.matches(text: String): Boolean {
+    fun plain(t: String) = Normalizer.normalize(t, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase()
+    val parts = plain(name).split(Regex("[\\s.-]+"))
+    return plain(text).split(Regex("\\s+")).filter { it.isNotEmpty() }.all { word -> parts.any { it.startsWith(word) } }
 }
