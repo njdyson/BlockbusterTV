@@ -190,10 +190,6 @@ function render() {
     const head = el("div", {},
       el("div", { className: "shelf-name", textContent: shelf.name }),
       el("div", { className: "shelf-tools" },
-        el("button", { className: "ghost small", textContent: "↑", title: "Move up", disabled: i === 0,
-          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: -1 }) }),
-        el("button", { className: "ghost small", textContent: "↓", title: "Move down", disabled: i === shelves.length - 1,
-          onclick: () => op({ op: "moveShelf", shelf: shelf.id, delta: 1 }) }),
         el("button", { className: "ghost small", textContent: "Rename", onclick: () => {
           const name = prompt("Shelf name", shelf.name);
           if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
@@ -207,12 +203,8 @@ function render() {
           poster(f),
           el("div", { className: "name", textContent: f.title }),
           el("div", { className: "tools" },
-            el("button", { className: "ghost", textContent: "◀", disabled: j === 0,
-              onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: -1 }) }),
-            el("button", { className: "ghost", textContent: "✕", title: "Remove",
+            el("button", { className: "ghost", textContent: "✕ Remove",
               onclick: () => op({ op: "removeFilm", shelf: shelf.id, jwId: f.jwId }) }),
-            el("button", { className: "ghost", textContent: "▶", disabled: j === shelf.films.length - 1,
-              onclick: () => op({ op: "moveFilm", shelf: shelf.id, jwId: f.jwId, delta: 1 }) }),
           ))))
       : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." });
     return el("div", { className: "shelf" }, head, films);

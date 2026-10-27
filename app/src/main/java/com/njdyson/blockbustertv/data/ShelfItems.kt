@@ -1,7 +1,5 @@
 package com.njdyson.blockbustertv.data
 
-import kotlin.random.Random
-
 /** One box on a shelf: a film, or a set of films shown as one box set. */
 sealed interface ShelfItem {
     /** Unique within its shelf: the film's jwId, or "set:" + the set's ID. */
@@ -20,8 +18,11 @@ data class SetItem(val set: FilmSet, val films: List<ShelfFilm>) : ShelfItem {
     override val cover get() = films.firstOrNull()
 }
 
-/** The shelf's items in its own order: each set folded into one item where its first film is. */
-fun Shelf.items(): List<ShelfItem> {
+/**
+ * The shelf's items in its saved order: each set folded into one item where its first film
+ * is. A set's films are in release order (earliest first; [yearOf] supplies the years).
+ */
+fun Shelf.items(yearOf: (ShelfFilm) -> Int? = { it.year }): List<ShelfItem> {
     val setOf = sets.flatMap { set -> set.films.map { it to set } }.toMap()
     val byId = films.associateBy { it.jwId }
     val seen = mutableSetOf<String>()
@@ -29,22 +30,29 @@ fun Shelf.items(): List<ShelfItem> {
         val set = setOf[film.jwId]
         when {
             set == null -> FilmItem(film)
-            seen.add(set.id) -> SetItem(set, set.films.mapNotNull { byId[it] })
+            seen.add(set.id) -> SetItem(set, set.films.mapNotNull { byId[it] }.sortedBy { yearOf(it) ?: Int.MAX_VALUE })
             else -> null
         }
     }
 }
 
-/** What the TV shows: shuffled shelves in an order fixed for the session's [seed]. */
-fun Shelf.displayItems(seed: Long): List<ShelfItem> =
-    if (shuffle) items().shuffled(Random(seed xor id.hashCode().toLong())) else items()
+/**
+ * What the TV shows: the shelf's items in a random order that's fixed for the session's
+ * [seed]. Each item's place comes from its own key, so adding or removing a film doesn't
+ * reshuffle the rest of the shelf.
+ */
+fun Shelf.displayItems(seed: Long, yearOf: (ShelfFilm) -> Int? = { it.year }): List<ShelfItem> =
+    items(yearOf).sortedBy { shuffleRank(seed, id + "/" + it.key) }
 
-/** The films' order that lays the items out as given, sets in their own order. */
-fun List<ShelfItem>.flatOrder(): List<String> = flatMap { item ->
-    when (item) {
-        is FilmItem -> listOf(item.film.jwId)
-        is SetItem -> item.films.map { it.jwId }
-    }
+/** Shelves in a random order fixed for the session's [seed]. */
+fun List<Shelf>.shuffled(seed: Long): List<Shelf> = sortedBy { shuffleRank(seed, it.id) }
+
+/** A well-mixed number from the seed and a key (SplitMix64 finaliser), for stable shuffling. */
+private fun shuffleRank(seed: Long, key: String): Long {
+    var z = seed + key.hashCode().toLong() * -0x61c8864680b583ebL
+    z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+    z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+    return z xor (z ushr 31)
 }
 
 /** Sets only reference films on their shelf; drops missing ones and empty sets. */

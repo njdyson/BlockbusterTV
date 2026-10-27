@@ -56,6 +56,42 @@ fun ChoiceDialog(title: String, choices: List<Pair<String, () -> Unit>>, onDismi
     LaunchedEffect(Unit) { first.requestFocusWhenReady() }
 }
 
+/** Tick several options, then confirm. Used to choose films for a set. */
+@Composable
+fun MultiChoiceDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    confirmLabel: String,
+    onDone: (List<String>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var chosen by remember { mutableStateOf(emptySet<String>()) }
+    val first = remember { FocusRequester() }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.width(460.dp).background(ShelfGrey, RoundedCornerShape(12.dp)).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(title, color = TicketYellow, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            LazyColumn(Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(options.size) { i ->
+                    val (key, label) = options[i]
+                    val on = key in chosen
+                    val modifier = Modifier.fillMaxWidth().let { if (i == 0) it.focusRequester(first) else it }
+                    val toggle = { chosen = if (on) chosen - key else chosen + key }
+                    if (on) Button(onClick = toggle, modifier = modifier) { Text("✓  $label") }
+                    else OutlinedButton(onClick = toggle, modifier = modifier) { Text("     $label") }
+                }
+            }
+            Button(onClick = { onDone(options.map { it.first }.filter { it in chosen }) }, enabled = chosen.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                Text(if (chosen.isEmpty()) confirmLabel else "$confirmLabel (${chosen.size})")
+            }
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+        }
+    }
+    LaunchedEffect(Unit) { first.requestFocusWhenReady() }
+}
+
 /** Pick a shelf, or make a new one (opens the on-screen keyboard). */
 @Composable
 fun ShelfPicker(shelves: List<Shelf>, onPick: (shelfId: String?, newName: String?) -> Unit, onDismiss: () -> Unit) {

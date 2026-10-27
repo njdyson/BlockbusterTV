@@ -10,7 +10,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.net.Inet4Address
@@ -73,15 +72,12 @@ class EditServer(
     /** Edits sent by the page: {"op": "...", ...}. */
     private fun apply(op: JsonObject) {
         fun s(name: String) = op[name]?.jsonPrimitive?.content.orEmpty()
-        fun n(name: String) = op[name]?.jsonPrimitive?.int ?: 0
         when (s("op")) {
             "addShelf" -> store.addShelf(s("name"))
             "renameShelf" -> store.renameShelf(s("shelf"), s("name"))
             "deleteShelf" -> store.deleteShelf(s("shelf"))
-            "moveShelf" -> store.moveShelf(s("shelf"), n("delta"))
             "addFilm" -> store.addFilm(s("shelf"), json.decodeFromJsonElement(ShelfFilm.serializer(), op["film"]!!))
             "removeFilm" -> store.removeFilm(s("shelf"), s("jwId"))
-            "moveFilm" -> store.moveFilm(s("shelf"), s("jwId"), n("delta"))
             else -> error("Unknown op ${s("op")}")
         }
     }

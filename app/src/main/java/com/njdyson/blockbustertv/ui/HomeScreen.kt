@@ -42,6 +42,8 @@ import com.njdyson.blockbustertv.data.FilmItem
 import com.njdyson.blockbustertv.data.SetItem
 import com.njdyson.blockbustertv.data.displayItems
 import com.njdyson.blockbustertv.data.items
+import com.njdyson.blockbustertv.data.shuffled
+import com.njdyson.blockbustertv.data.FilmSet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,16 +79,20 @@ fun HomeScreen(
     onPhoneEdit: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    val shelves by app.shelfStore.shelves.collectAsState()
+    val savedShelves by app.shelfStore.shelves.collectAsState()
+    // Shelves, and the films on them, in a random order that's new each session (AppState.shuffleSeed).
+    val shelves = remember(savedShelves, app.shuffleSeed) { savedShelves.shuffled(app.shuffleSeed) }
     val owned by app.shelfStore.owned.collectAsState()
+    val yearOf = { film: ShelfFilm -> app.films[film.jwId]?.year ?: film.year }
     // The focused box is "shelfId:itemKey"; a set's preview and backdrop come from its first film.
     val focusedItem = app.focusedKey?.let { key ->
-        shelves.firstOrNull { it.id == key.substringBefore(':') }?.items()?.firstOrNull { it.key == key.substringAfter(':') }
+        shelves.firstOrNull { it.id == key.substringBefore(':') }?.items(yearOf)?.firstOrNull { it.key == key.substringAfter(':') }
     }
     val focusedFilm = focusedItem?.cover?.let { app.films[it.jwId] }
     var menuFor by remember { mutableStateOf<Pair<Shelf, ShelfItem>?>(null) }
     var copying by remember { mutableStateOf<ShelfFilm?>(null) }
     var choosingSet by remember { mutableStateOf<Pair<Shelf, ShelfFilm>?>(null) }
+    var gathering by remember { mutableStateOf<SetGathering?>(null) }
     var naming by remember { mutableStateOf<Naming?>(null) }
     var pendingShelf by remember { mutableStateOf<String?>(null) }
 
@@ -125,7 +131,7 @@ fun HomeScreen(
             if (app.overview && shelves.isNotEmpty()) {
                 ShelfOverview(app, shelves, onPick = { shelf ->
                     // Back to the shelves, on the first box of the chosen one.
-                    app.focusedKey = shelf.displayItems(app.shuffleSeed).firstOrNull()?.let { "${shelf.id}:${it.key}" }
+                    app.focusedKey = shelf.displayItems(app.shuffleSeed, yearOf).firstOrNull()?.let { "${shelf.id}:${it.key}" }
                     pendingShelf = shelf.id
                     app.showOverview(false)
                 })
@@ -161,8 +167,7 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
-                            // Shuffled shelves get a new order each session (see AppState.shuffleSeed).
-                            val items = shelf.displayItems(app.shuffleSeed)
+                            val items = shelf.displayItems(app.shuffleSeed, yearOf)
                             itemsIndexed(items, key = { _, item -> item.key }) { i, item ->
                                 val key = "${shelf.id}:${item.key}"
                                 // Focus the first box on launch, or the last one used when coming Back.
@@ -196,7 +201,7 @@ fun HomeScreen(
                 }
                 item {
                     Text(
-                        "Availability and ratings from JustWatch · Hold Select on a box to move it, make sets or shuffle the shelf",
+                        "Availability and ratings from JustWatch · Shelves are shuffled each time · Hold Select on a box to make sets or remove it",
                         color = Color.White.copy(alpha = 0.4f),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 48.dp),
@@ -208,20 +213,17 @@ fun HomeScreen(
 
     menuFor?.let { (shelf, item) ->
         val store = app.shelfStore
-        val index = shelf.items().indexOfFirst { it.key == item.key }
-        val count = shelf.items().size
+        val loose = shelf.items(yearOf).filterIsInstance<FilmItem>().map { it.film }
         ChoiceDialog(
             when (item) {
                 is FilmItem -> item.film.title
                 is SetItem -> "${item.set.name} (box set)"
             },
             buildList {
-                // Moving makes no sense on a shuffled shelf.
-                if (!shelf.shuffle && index > 0) add("Move left" to { store.moveItem(shelf.id, item.key, -1) })
-                if (!shelf.shuffle && index < count - 1) add("Move right" to { store.moveItem(shelf.id, item.key, 1) })
                 when (item) {
                     is FilmItem -> {
-                        add("Add to a set…" to { choosingSet = shelf to item.film })
+                        if (loose.size > 1) add("Make a set with other films…" to { gathering = SetGathering(shelf, item.film, null) })
+                        if (shelf.sets.isNotEmpty()) add("Add to a set…" to { choosingSet = shelf to item.film })
                         add("Add to another shelf…" to { copying = item.film })
                         add("Remove from ${shelf.name}" to {
                             app.focusedKey = null
@@ -230,6 +232,7 @@ fun HomeScreen(
                     }
                     is SetItem -> {
                         add("Open the set" to { onOpenSet(shelf.id, item.set.id) })
+                        if (loose.isNotEmpty()) add("Add films to this set…" to { gathering = SetGathering(shelf, null, item.set) })
                         add("Rename the set…" to {
                             naming = Naming("Rename the set", item.set.name, "Rename") { store.renameSet(shelf.id, item.set.id, it) }
                         })
@@ -239,23 +242,44 @@ fun HomeScreen(
                         })
                     }
                 }
-                add((if (shelf.shuffle) "Stop shuffling ${shelf.name}" else "Shuffle ${shelf.name} each time") to {
-                    store.setShuffle(shelf.id, !shelf.shuffle)
-                })
             },
             onDismiss = { menuFor = null },
+        )
+    }
+    // Ticking films for a new set (started from one film) or for an existing set.
+    gathering?.let { request ->
+        val shelf = request.shelf
+        val loose = shelf.items(yearOf).filterIsInstance<FilmItem>().map { it.film }.filterNot { it.jwId == request.film?.jwId }
+        MultiChoiceDialog(
+            title = request.set?.let { "Add films to ${it.name}" } ?: "Make a set with ${request.film?.title}",
+            options = loose.map { it.jwId to (it.title + (yearOf(it)?.let { y -> " ($y)" } ?: "")) },
+            confirmLabel = if (request.set != null) "Add to the set" else "Next: name the set",
+            onDone = { chosen ->
+                gathering = null
+                val set = request.set
+                if (set != null) {
+                    chosen.forEach { app.shelfStore.addToSet(shelf.id, set.id, it) }
+                    app.focusedKey = "${shelf.id}:set:${set.id}"
+                } else {
+                    val films = listOfNotNull(request.film?.jwId) + chosen
+                    naming = Naming("Name the set", "", "Create set") { name ->
+                        val id = app.shelfStore.createSet(shelf.id, name, films)
+                        app.focusedKey = "${shelf.id}:set:$id"
+                    }
+                }
+            },
+            onDismiss = { gathering = null },
         )
     }
     choosingSet?.let { (shelf, film) ->
         ChoiceDialog(
             "Add ${film.title} to a set",
-            shelf.sets.map { set -> set.name to { app.shelfStore.addToSet(shelf.id, set.id, film.jwId) } } +
-                ("+ New set…" to {
-                    naming = Naming("Name the new set", "", "Create set") { name ->
-                        val id = app.shelfStore.createSet(shelf.id, name, listOf(film.jwId))
-                        app.focusedKey = "${shelf.id}:set:$id"
-                    }
-                }),
+            shelf.sets.map { set ->
+                set.name to {
+                    app.shelfStore.addToSet(shelf.id, set.id, film.jwId)
+                    app.focusedKey = "${shelf.id}:set:${set.id}"
+                }
+            },
             onDismiss = { choosingSet = null },
         )
     }
@@ -273,6 +297,9 @@ fun HomeScreen(
         )
     }
 }
+
+/** Choosing films for a set: a new one started from [film], or more for an existing [set]. */
+private class SetGathering(val shelf: Shelf, val film: ShelfFilm?, val set: FilmSet?)
 
 /** A text-entry request: "Name the new set", "Rename the set"… */
 private class Naming(val title: String, val initial: String, val confirm: String, val onDone: (String) -> Unit)
@@ -439,7 +466,7 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
                 ) {
                     Column(Modifier.padding(6.dp)) {
-                        val posters = shelf.displayItems(app.shuffleSeed).take(4).map { item ->
+                        val posters = shelf.displayItems(app.shuffleSeed, { f -> app.films[f.jwId]?.year ?: f.year }).take(4).map { item ->
                             item.cover?.let { app.films[it.jwId]?.poster ?: it.poster }
                         }
                         for (row in 0..1) {

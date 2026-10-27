@@ -19,10 +19,12 @@ Curated lists of movies from streaming sources, for Fire TV and Android TV.
 - **Search** (phone app and TV) finds films by title, or by actor or director (typing a
   name offers matching people), with filters for genre, decade, IMDb rating, streaming
   service and sort order. Filters work without any text, to browse.
-- **Sets** (box sets) group films on a shelf into one box that keeps its own order, e.g.
-  Rocky 1–5. Phone app: Make a set on a shelf. TV: hold Select on a film > Add to a set.
-- **Shuffle**: a shelf can show its films (and sets) in a new random order each time the
-  app is opened, or after 30 minutes away. Phone app: Shuffle on TV. TV: hold Select.
+- **Random order:** shelves, and the films and sets on them, appear in a new random
+  order each time the app is opened (or after 30 minutes away on the TV), so browsing
+  stays varied. There are no ordering controls.
+- **Sets** (box sets) group films on a shelf into one box, always in release order, e.g.
+  Rocky 1–5. Phone app: Make a set on a shelf and tick the films. TV: hold Select on a
+  film > Make a set with other films, or on a set > Add films to this set.
 - **Film pages** (phone app): tap any poster for the synopsis, runtime, age rating,
   IMDb rating, genres, director and cast (tap a name for their films), where to watch
   and rent/buy prices with links, a trailer link, and the owned-on-YouTube switch.

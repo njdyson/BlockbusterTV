@@ -36,7 +36,9 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
     val owned by app.shelfStore.owned.collectAsState()
     val shelf = shelves.firstOrNull { it.id == shelfId }
     val set = shelf?.sets?.firstOrNull { it.id == setId }
+    // In release order, earliest first.
     val films = set?.films.orEmpty().mapNotNull { id -> shelf?.films?.firstOrNull { it.jwId == id } }
+        .sortedBy { app.films[it.jwId]?.year ?: it.year ?: Int.MAX_VALUE }
     var focused by remember { mutableStateOf<String?>(null) }
     var menuFor by remember { mutableStateOf<ShelfFilm?>(null) }
 
@@ -62,7 +64,8 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
                 )
             }
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 18.dp),
+                // Side padding leaves room for the focused box to grow without being clipped.
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 itemsIndexed(films, key = { _, film -> film.jwId }) { i, film ->
@@ -78,19 +81,16 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
                     )
                 }
             }
-            Text("Hold Select on a film to change the order or take it out of the set.", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+            Text("In release order · Hold Select on a film to take it out of the set.", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
         }
     }
 
     val currentSet = set
     menuFor?.let { film ->
         if (shelf == null || currentSet == null) return@let
-        val index = currentSet.films.indexOf(film.jwId)
         ChoiceDialog(
             film.title,
             buildList {
-                if (index > 0) add("Move earlier" to { app.shelfStore.moveInSet(shelf.id, currentSet.id, film.jwId, -1) })
-                if (index < currentSet.films.lastIndex) add("Move later" to { app.shelfStore.moveInSet(shelf.id, currentSet.id, film.jwId, 1) })
                 add("Take out of the set (keep on the shelf)" to { app.shelfStore.removeFromSet(shelf.id, film.jwId) })
                 add("Remove from ${shelf.name}" to { app.shelfStore.removeFilm(shelf.id, film.jwId) })
             },

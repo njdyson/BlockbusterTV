@@ -17,23 +17,36 @@ class ShelfItemsTest {
     }
 
     @Test
-    fun setsKeepTheirOwnOrderAndFlattenBack() {
+    fun setsFoldIntoOneItem() {
         val withSet = shelf.copy(sets = listOf(FilmSet("set1", "Rocky", listOf("r3", "r1", "r2"))))
         val items = withSet.items()
         assertEquals(listOf("set:set1", "other", "r4", "r5"), items.map { it.key })
+        // No years known: the set keeps its saved order.
         assertEquals(listOf("r3", "r1", "r2"), (items[0] as SetItem).films.map { it.jwId })
-        assertEquals(listOf("r3", "r1", "r2", "other", "r4", "r5"), items.flatOrder())
     }
 
     @Test
-    fun shuffleIsStablePerSeedAndKeepsSetsWhole() {
-        val big = Shelf("s2", "Big", (1..20).map { film("f$it") }, sets = listOf(FilmSet("set1", "Trilogy", listOf("f1", "f2", "f3"))), shuffle = true)
-        val a = big.displayItems(seed = 42)
-        assertEquals(a, big.displayItems(seed = 42))
-        assertNotEquals(a.map { it.key }, big.displayItems(seed = 7).map { it.key })
+    fun shelvesAreAlwaysShuffledStablyAndSetsKeepReleaseOrder() {
+        val years = mapOf("f1" to 1983, "f2" to 1977, "f3" to 1980)
+        val big = Shelf("s2", "Big", (1..20).map { film("f$it") }, sets = listOf(FilmSet("set1", "Star Wars", listOf("f1", "f2", "f3"))))
+        val yearOf = { f: ShelfFilm -> years[f.jwId] }
+        val a = big.displayItems(seed = 42, yearOf = yearOf)
+        assertEquals(a, big.displayItems(seed = 42, yearOf = yearOf))
+        assertNotEquals(a.map { it.key }, big.displayItems(seed = 7, yearOf = yearOf).map { it.key })
+        assertNotEquals(big.items(yearOf).map { it.key }, a.map { it.key })
         assertEquals(18, a.size) // 17 films + 1 set
-        assertEquals(listOf("f1", "f2", "f3"), (a.single { it is SetItem } as SetItem).films.map { it.jwId })
-        assertEquals(big.items(), big.copy(shuffle = false).displayItems(seed = 42))
+        assertEquals(listOf("f2", "f3", "f1"), (a.single { it is SetItem } as SetItem).films.map { it.jwId }) // 1977, 1980, 1983
+        // Removing a film leaves everything else in the same order.
+        val fewer = big.copy(films = big.films.filterNot { it.jwId == "f10" }).displayItems(seed = 42, yearOf = yearOf)
+        assertEquals(a.map { it.key }.filterNot { it == "f10" }, fewer.map { it.key })
+    }
+
+    @Test
+    fun shelfOrderIsShuffledPerSeed() {
+        val shelves = (1..10).map { Shelf("shelf$it", "Shelf $it", emptyList()) }
+        assertEquals(shelves.shuffled(1L), shelves.shuffled(1L))
+        assertNotEquals(shelves.shuffled(1L), shelves.shuffled(2L))
+        assertEquals(shelves.toSet(), shelves.shuffled(1L).toSet())
     }
 
     @Test

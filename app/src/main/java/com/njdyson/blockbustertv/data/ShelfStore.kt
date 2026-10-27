@@ -39,7 +39,7 @@ data class Shelf(
     val name: String,
     val films: List<ShelfFilm>,
     val sets: List<FilmSet> = emptyList(),
-    /** Shown in a new random order each session (sets keep their own order). */
+    /** No longer used (every shelf is shuffled); kept so saved data and the server's copy still read. */
     val shuffle: Boolean = false,
 )
 
@@ -113,11 +113,6 @@ class ShelfStore(context: Context) {
         send("deleteShelf") { put("shelf", id) }
     }
 
-    fun moveShelf(id: String, delta: Int) {
-        update { list -> list.move(list.indexOfFirst { it.id == id }, delta) }
-        send("moveShelf") { put("shelf", id); put("delta", delta) }
-    }
-
     fun addFilm(shelfId: String, film: ShelfFilm) {
         updateShelf(shelfId) { shelf ->
             if (shelf.films.any { it.jwId == film.jwId }) shelf else shelf.copy(films = shelf.films + film)
@@ -128,29 +123,6 @@ class ShelfStore(context: Context) {
     fun removeFilm(shelfId: String, jwId: String) {
         updateShelf(shelfId) { shelf -> shelf.copy(films = shelf.films.filterNot { it.jwId == jwId }).withCleanSets() }
         send("removeFilm") { put("shelf", shelfId); put("jwId", jwId) }
-    }
-
-    /** Moves a film or a whole set (by its item key) left or right among the shelf's items. */
-    fun moveItem(shelfId: String, itemKey: String, delta: Int) {
-        val shelf = shelves.value.firstOrNull { it.id == shelfId } ?: return
-        val items = shelf.items()
-        val index = items.indexOfFirst { it.key == itemKey }
-        if (index < 0 || index + delta !in items.indices) return
-        val moved = items.toMutableList().apply { add(index + delta, removeAt(index)) }
-        reorderFilms(shelfId, moved.flatOrder())
-    }
-
-    fun reorderFilms(shelfId: String, order: List<String>) {
-        updateShelf(shelfId) { shelf ->
-            val byId = shelf.films.associateBy { it.jwId }
-            if (order.toSet() != byId.keys || order.size != byId.size) shelf else shelf.copy(films = order.map { byId.getValue(it) })
-        }
-        send("reorderFilms") { put("shelf", shelfId); put("order", JsonArray(order.map(::JsonPrimitive))) }
-    }
-
-    fun setShuffle(shelfId: String, shuffle: Boolean) {
-        updateShelf(shelfId) { it.copy(shuffle = shuffle) }
-        send("setShuffle") { put("shelf", shelfId); put("shuffle", shuffle) }
     }
 
     /** Groups films on a shelf into a new set; returns its ID. */
@@ -192,20 +164,6 @@ class ShelfStore(context: Context) {
         send("removeFromSet") { put("shelf", shelfId); put("jwId", jwId) }
     }
 
-    /** Moves a film earlier or later within its set. */
-    fun moveInSet(shelfId: String, setId: String, jwId: String, delta: Int) {
-        val set = shelves.value.firstOrNull { it.id == shelfId }?.sets?.firstOrNull { it.id == setId } ?: return
-        val order = set.films.move(set.films.indexOf(jwId), delta)
-        if (order == set.films) return
-        updateShelf(shelfId) { shelf -> shelf.copy(sets = shelf.sets.map { if (it.id == setId) it.copy(films = order) else it }).gathered(setId) }
-        send("reorderSet") { put("shelf", shelfId); put("set", setId); put("order", JsonArray(order.map(::JsonPrimitive))) }
-    }
-
-    fun moveFilm(shelfId: String, jwId: String, delta: Int) {
-        updateShelf(shelfId) { shelf -> shelf.copy(films = shelf.films.move(shelf.films.indexOfFirst { it.jwId == jwId }, delta)) }
-        send("moveFilm") { put("shelf", shelfId); put("jwId", jwId); put("delta", delta) }
-    }
-
     private fun send(op: String, fields: JsonObjectBuilder.() -> Unit) {
         val server = remote ?: return
         val body = buildJsonObject { put("op", op); fields() }
@@ -242,10 +200,4 @@ class ShelfStore(context: Context) {
 
     @Serializable
     private data class StarterFile(val collections: List<FilmCollection>)
-
-    private fun <T> List<T>.move(index: Int, delta: Int): List<T> {
-        val target = index + delta
-        if (index < 0 || target !in indices) return this
-        return toMutableList().apply { add(target, removeAt(index)) }
-    }
 }
