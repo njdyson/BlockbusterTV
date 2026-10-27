@@ -54,4 +54,13 @@ class ShelfItemsTest {
         val s = shelf.copy(films = shelf.films.filterNot { it.jwId == "r1" }, sets = listOf(FilmSet("a", "A", listOf("r1")), FilmSet("b", "B", listOf("r1", "r2"))))
         assertEquals(listOf(FilmSet("b", "B", listOf("r2"))), s.withCleanSets().sets)
     }
+
+    @Test
+    fun filteringKeepsMatchingFilmsAndShrinksSets() {
+        val withSets = shelf.copy(sets = listOf(FilmSet("set1", "Rocky", listOf("r1", "r2", "r3")), FilmSet("set2", "More", listOf("r4"))))
+        val free = withSets.onlyFilms { it.jwId in setOf("r1", "r3", "other") }
+        assertEquals(listOf("r1", "other", "r3"), free.films.map { it.jwId })
+        assertEquals(listOf(FilmSet("set1", "Rocky", listOf("r1", "r3"))), free.sets)
+        assertEquals(listOf("set:set1", "other"), free.items().map { it.key })
+    }
 }

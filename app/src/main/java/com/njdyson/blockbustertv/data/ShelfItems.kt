@@ -61,6 +61,9 @@ fun Shelf.withCleanSets(): Shelf {
     return copy(sets = sets.map { set -> set.copy(films = set.films.filter { it in onShelf }) }.filter { it.films.isNotEmpty() })
 }
 
+/** The shelf with only the films that pass [keep]; sets shrink to those films, and empty ones go. */
+fun Shelf.onlyFilms(keep: (ShelfFilm) -> Boolean): Shelf = copy(films = films.filter(keep)).withCleanSets()
+
 /** Keeps a set's films together in the shelf's order, where its first member is (as the server does). */
 fun Shelf.gathered(setId: String): Shelf {
     val set = sets.firstOrNull { it.id == setId } ?: return this
