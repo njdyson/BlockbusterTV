@@ -21,6 +21,7 @@ import com.njdyson.blockbustertv.ui.PhoneEditScreen
 import com.njdyson.blockbustertv.ui.Screen
 import com.njdyson.blockbustertv.ui.SearchScreen
 import com.njdyson.blockbustertv.ui.SettingsScreen
+import com.njdyson.blockbustertv.ui.ShortlistScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -63,9 +64,11 @@ class MainActivity : ComponentActivity() {
                         onSearch = { open(Screen.Search) },
                         onPhoneEdit = { open(Screen.PhoneEdit) },
                         onSettings = { open(Screen.Settings) },
+                        onShortlist = { open(Screen.Shortlist) },
                     )
                     is Screen.Detail -> app.films[screen.jwId]?.let { DetailScreen(app, it) }
                     is Screen.BoxSet -> BoxSetScreen(app, screen.shelfId, screen.setId, onOpen = { open(Screen.Detail(it.jwId)) })
+                    Screen.Shortlist -> ShortlistScreen(app, onOpen = { open(Screen.Detail(it.jwId)) })
                     Screen.Search -> SearchScreen(app)
                     Screen.PhoneEdit -> PhoneEditScreen(app, onDone = ::back)
                     Screen.LinkAccount -> LinkAccountScreen(app, onDone = ::back)

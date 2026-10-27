@@ -68,7 +68,7 @@ import com.njdyson.blockbustertv.data.FilmLauncher
 /**
  * The store floor: a preview of the focused film at the top ("the back of the box"),
  * then a shelf of VHS boxes per collection. Hold Select (or press Menu) on a box to
- * move or remove it.
+ * move or remove it; press Play/Pause to add it to the shortlist.
  */
 @Composable
 fun HomeScreen(
@@ -78,6 +78,7 @@ fun HomeScreen(
     onSearch: () -> Unit,
     onPhoneEdit: () -> Unit,
     onSettings: () -> Unit,
+    onShortlist: () -> Unit,
 ) {
     val savedShelves by app.shelfStore.shelves.collectAsState()
     // Shelves, and the films on them, in a random order that's new each session (AppState.shuffleSeed).
@@ -133,6 +134,7 @@ fun HomeScreen(
                 Spacer(Modifier.weight(1f))
                 OutlinedButton(onClick = { app.showFreeOnly(!app.freeOnly) }) { Text(if (app.freeOnly) "Show all films" else "Free to watch") }
                 OutlinedButton(onClick = { app.showOverview(!app.overview) }) { Text(if (app.overview) "Shelves" else "Overview") }
+                OutlinedButton(onClick = onShortlist) { Text(if (app.shortlist.isEmpty()) "Shortlist" else "Shortlist (${app.shortlist.size})") }
                 OutlinedButton(onClick = onSearch) { Text("Add film") }
                 OutlinedButton(onClick = onPhoneEdit) { Text("Edit on phone") }
                 OutlinedButton(onClick = onSettings) { Text("Settings") }
@@ -189,10 +191,12 @@ fun HomeScreen(
                                         title = item.film.title,
                                         fallbackPoster = item.film.poster,
                                         ownedOnYouTube = item.film.jwId in owned,
+                                        shortlisted = app.isShortlisted(item.film.jwId),
                                         requestFocus = wantsFocus,
                                         onFocused = { app.focusedKey = key },
                                         onClick = { app.films[item.film.jwId]?.let(onOpen) },
                                         onMenu = { menuFor = saved(shelf) to item },
+                                        onShortlist = { app.toggleShortlist(item.film) },
                                     )
                                     is SetItem -> VhsBox(
                                         film = item.cover?.let { app.films[it.jwId] },
@@ -212,7 +216,7 @@ fun HomeScreen(
                 item {
                     Text(
                         (if (app.freeOnly) "Showing films included on your services or owned on YouTube · " else "") +
-                            "Availability and ratings from JustWatch · Hold Select on a box to make sets or remove it",
+                            "Availability and ratings from JustWatch · Hold Select on a box to make sets or remove it · Press ⏯ on a box to shortlist it",
                         color = Color.White.copy(alpha = 0.4f),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 48.dp),
@@ -233,6 +237,7 @@ fun HomeScreen(
             buildList {
                 when (item) {
                     is FilmItem -> {
+                        add((if (app.isShortlisted(item.film.jwId)) "Take off the shortlist" else "Add to the shortlist") to { app.toggleShortlist(item.film) })
                         if (loose.size > 1) add("Make a set with other films…" to { gathering = SetGathering(shelf, item.film, null) })
                         if (shelf.sets.isNotEmpty()) add("Add to a set…" to { choosingSet = shelf to item.film })
                         add("Add to another shelf…" to { copying = item.film })
@@ -357,11 +362,13 @@ internal fun VhsBox(
     title: String,
     fallbackPoster: String?,
     ownedOnYouTube: Boolean = false,
+    shortlisted: Boolean = false,
     setCount: Int? = null,
     requestFocus: Boolean,
     onFocused: () -> Unit,
     onClick: () -> Unit,
     onMenu: () -> Unit,
+    onShortlist: (() -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     if (requestFocus) {
@@ -375,8 +382,14 @@ internal fun VhsBox(
             .focusRequester(focusRequester)
             .onFocusChanged { if (it.isFocused) onFocused() }
             .onKeyEvent { event ->
-                // The remote's Menu (☰) button opens the same menu as holding Select.
-                if (event.key == Key.Menu && event.type == KeyEventType.KeyUp) { onMenu(); true } else false
+                // The remote's Menu (☰) button opens the same menu as holding Select,
+                // and Play/Pause adds the film to the shortlist (or takes it off).
+                when {
+                    event.type != KeyEventType.KeyUp -> false
+                    event.key == Key.Menu -> { onMenu(); true }
+                    event.key == Key.MediaPlayPause && onShortlist != null -> { onShortlist(); true }
+                    else -> false
+                }
             },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(6.dp)),
         colors = ClickableSurfaceDefaults.colors(
@@ -414,6 +427,7 @@ internal fun VhsBox(
                 } else {
                     RatingSticker(film?.imdbScore, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
                 }
+                if (shortlisted) ShortlistTag(Modifier.align(Alignment.BottomStart).padding(4.dp))
             }
             Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)

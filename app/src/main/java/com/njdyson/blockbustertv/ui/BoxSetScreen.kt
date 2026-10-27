@@ -74,14 +74,16 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
                         title = film.title,
                         fallbackPoster = film.poster,
                         ownedOnYouTube = film.jwId in owned,
+                        shortlisted = app.isShortlisted(film.jwId),
                         requestFocus = i == 0 && focused == null,
                         onFocused = { focused = film.jwId },
                         onClick = { app.films[film.jwId]?.let(onOpen) },
                         onMenu = { menuFor = film },
+                        onShortlist = { app.toggleShortlist(film) },
                     )
                 }
             }
-            Text("In release order · Hold Select on a film to take it out of the set.", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+            Text("In release order · Hold Select on a film to take it out of the set · Press ⏯ to shortlist it.", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
         }
     }
 
@@ -91,6 +93,7 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
         ChoiceDialog(
             film.title,
             buildList {
+                add((if (app.isShortlisted(film.jwId)) "Take off the shortlist" else "Add to the shortlist") to { app.toggleShortlist(film) })
                 add("Take out of the set (keep on the shelf)" to { app.shelfStore.removeFromSet(shelf.id, film.jwId) })
                 add("Remove from ${shelf.name}" to { app.shelfStore.removeFilm(shelf.id, film.jwId) })
             },
