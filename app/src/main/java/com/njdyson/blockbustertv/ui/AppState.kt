@@ -88,6 +88,23 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         uiPrefs.edit().putBoolean("overview", show).apply()
     }
 
+    /** Home shows only films that are free to watch (see [isFreeToWatch]). Remembered between launches. */
+    var freeOnly by mutableStateOf(uiPrefs.getBoolean("freeOnly", false))
+        private set
+
+    fun showFreeOnly(show: Boolean) {
+        freeOnly = show
+        uiPrefs.edit().putBoolean("freeOnly", show).apply()
+    }
+
+    /**
+     * Free to watch: included at no extra cost on one of the services in services.json
+     * (subscription, free or with ads), or already owned on YouTube. Rent or buy only, not
+     * streaming, or not loaded yet doesn't count.
+     */
+    fun isFreeToWatch(film: ShelfFilm): Boolean =
+        film.jwId in shelfStore.owned.value || films[film.jwId]?.watchOffers?.isNotEmpty() == true
+
     init {
         account.deviceKey?.let { connect(it) }
         shelfStore.onSyncError = { e ->

@@ -42,6 +42,7 @@ import com.njdyson.blockbustertv.data.FilmItem
 import com.njdyson.blockbustertv.data.SetItem
 import com.njdyson.blockbustertv.data.displayItems
 import com.njdyson.blockbustertv.data.items
+import com.njdyson.blockbustertv.data.onlyFilms
 import com.njdyson.blockbustertv.data.shuffled
 import com.njdyson.blockbustertv.data.FilmSet
 import androidx.compose.ui.Alignment
@@ -81,14 +82,22 @@ fun HomeScreen(
 ) {
     val savedShelves by app.shelfStore.shelves.collectAsState()
     // Shelves, and the films on them, in a random order that's new each session (AppState.shuffleSeed).
-    val shelves = remember(savedShelves, app.shuffleSeed) { savedShelves.shuffled(app.shuffleSeed) }
+    val allShelves = remember(savedShelves, app.shuffleSeed) { savedShelves.shuffled(app.shuffleSeed) }
     val owned by app.shelfStore.owned.collectAsState()
+    // With Free to watch on, each shelf keeps only its free films, and shelves left empty are hidden.
+    val shelves = remember(allShelves, app.freeOnly, app.films, owned) {
+        if (!app.freeOnly) allShelves
+        else allShelves.map { shelf -> shelf.onlyFilms(app::isFreeToWatch) }.filter { it.films.isNotEmpty() }
+    }
+    fun saved(shelf: Shelf) = savedShelves.firstOrNull { it.id == shelf.id } ?: shelf
     val yearOf = { film: ShelfFilm -> app.films[film.jwId]?.year ?: film.year }
     // The focused box is "shelfId:itemKey"; a set's preview and backdrop come from its first film.
+    // If the filter hides it, focus falls back to the first box.
     val focusedItem = app.focusedKey?.let { key ->
         shelves.firstOrNull { it.id == key.substringBefore(':') }?.items(yearOf)?.firstOrNull { it.key == key.substringAfter(':') }
     }
     val focusedFilm = focusedItem?.cover?.let { app.films[it.jwId] }
+    val focusKey = app.focusedKey?.takeIf { focusedItem != null }
     var menuFor by remember { mutableStateOf<Pair<Shelf, ShelfItem>?>(null) }
     var copying by remember { mutableStateOf<ShelfFilm?>(null) }
     var choosingSet by remember { mutableStateOf<Pair<Shelf, ShelfFilm>?>(null) }
@@ -123,6 +132,7 @@ fun HomeScreen(
                 Spacer(Modifier.width(12.dp))
                 app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp) }
                 Spacer(Modifier.weight(1f))
+                OutlinedButton(onClick = { app.showFreeOnly(!app.freeOnly) }) { Text(if (app.freeOnly) "Show all films" else "Free to watch") }
                 OutlinedButton(onClick = { app.showOverview(!app.overview) }) { Text(if (app.overview) "Shelves" else "Overview") }
                 OutlinedButton(onClick = onSearch) { Text("Add film") }
                 OutlinedButton(onClick = onPhoneEdit) { Text("Edit on phone") }
@@ -140,7 +150,8 @@ fun HomeScreen(
             Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp).height(128.dp))
             if (shelves.isEmpty()) {
                 Text(
-                    "No shelves yet. Choose Edit on phone or Add film to start one.",
+                    if (app.freeOnly && allShelves.isNotEmpty()) "Nothing on your shelves is free to watch right now. Choose Show all films to see everything."
+                    else "No shelves yet. Choose Edit on phone or Add film to start one.",
                     color = Color.White,
                     fontSize = 18.sp,
                     modifier = Modifier.padding(48.dp),
@@ -171,8 +182,8 @@ fun HomeScreen(
                             itemsIndexed(items, key = { _, item -> item.key }) { i, item ->
                                 val key = "${shelf.id}:${item.key}"
                                 // Focus the first box on launch, or the last one used when coming Back.
-                                val wantsFocus = app.focusedKey == key ||
-                                    (app.focusedKey == null && shelfIndex == 0 && i == 0)
+                                val wantsFocus = focusKey == key ||
+                                    (focusKey == null && shelfIndex == 0 && i == 0)
                                 when (item) {
                                     is FilmItem -> VhsBox(
                                         film = app.films[item.film.jwId],
@@ -182,7 +193,7 @@ fun HomeScreen(
                                         requestFocus = wantsFocus,
                                         onFocused = { app.focusedKey = key },
                                         onClick = { app.films[item.film.jwId]?.let(onOpen) },
-                                        onMenu = { menuFor = shelf to item },
+                                        onMenu = { menuFor = saved(shelf) to item },
                                     )
                                     is SetItem -> VhsBox(
                                         film = item.cover?.let { app.films[it.jwId] },
@@ -192,7 +203,7 @@ fun HomeScreen(
                                         requestFocus = wantsFocus,
                                         onFocused = { app.focusedKey = key },
                                         onClick = { onOpenSet(shelf.id, item.set.id) },
-                                        onMenu = { menuFor = shelf to item },
+                                        onMenu = { menuFor = saved(shelf) to item },
                                     )
                                 }
                             }
@@ -201,7 +212,8 @@ fun HomeScreen(
                 }
                 item {
                     Text(
-                        "Availability and ratings from JustWatch · Shelves are shuffled each time · Hold Select on a box to make sets or remove it",
+                        (if (app.freeOnly) "Showing films included on your services or owned on YouTube · " else "") +
+                            "Availability and ratings from JustWatch · Shelves are shuffled each time · Hold Select on a box to make sets or remove it",
                         color = Color.White.copy(alpha = 0.4f),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 48.dp),
@@ -288,7 +300,7 @@ fun HomeScreen(
     }
     copying?.let { film ->
         ShelfPicker(
-            shelves,
+            allShelves,
             onPick = { shelfId, newName ->
                 app.addToShelf(shelfId ?: app.shelfStore.addShelf(newName.orEmpty()), film)
                 copying = null

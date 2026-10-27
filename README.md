@@ -28,6 +28,10 @@ Curated lists of movies from streaming sources, for Fire TV and Android TV.
 - **Film pages** (phone app): tap any poster for the synopsis, runtime, age rating,
   IMDb rating, genres, director and cast (tap a name for their films), where to watch
   and rent/buy prices with links, a trailer link, and the owned-on-YouTube switch.
+- **Free to watch** (TV): the button on Home shows only films included on your services
+  (subscription, free or with ads, from services.json) or owned on YouTube, hiding rent/buy-only
+  and not-streaming films, and shelves left empty. Press it again (Show all films) to undo; the
+  choice is remembered.
 - **Overview** (phone app and TV) zooms out: every shelf as a tile of its first four
   posters; pick one to jump to that shelf.
 
