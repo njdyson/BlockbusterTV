@@ -26,6 +26,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 sealed interface Screen {
     data object Home : Screen
@@ -36,6 +38,7 @@ sealed interface Screen {
     data object Settings : Screen
     data object LinkLab : Screen
     data class BoxSet(val shelfId: String, val setId: String) : Screen
+    data object Shortlist : Screen
 }
 
 /** App-wide state: shelves, film data, and Home's scroll and focus so Back returns to the same box. */
@@ -105,6 +108,37 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
     fun isFreeToWatch(film: ShelfFilm): Boolean =
         film.jwId in shelfStore.owned.value || films[film.jwId]?.watchOffers?.isNotEmpty() == true
 
+    /**
+     * Films picked while browsing, to compare side by side before choosing one. Kept on this
+     * TV only (not synced to the account), in the order they were added. Remembered between launches.
+     */
+    var shortlist by mutableStateOf(
+        runCatching { Json.decodeFromString(shortlistSerializer, uiPrefs.getString("shortlist", null) ?: "[]") }.getOrDefault(emptyList()),
+    )
+        private set
+
+    fun isShortlisted(jwId: String): Boolean = shortlist.any { it.jwId == jwId }
+
+    /** Adds the film to the shortlist, or takes it off if it's already there. */
+    fun toggleShortlist(film: ShelfFilm) {
+        if (isShortlisted(film.jwId)) {
+            saveShortlist(shortlist.filterNot { it.jwId == film.jwId })
+            toast("Took ${film.title} off the shortlist", Toast.LENGTH_SHORT)
+        } else {
+            saveShortlist(shortlist + film)
+            toast("Added ${film.title} to the shortlist (${shortlist.size})", Toast.LENGTH_SHORT)
+        }
+    }
+
+    fun removeFromShortlist(jwId: String) = saveShortlist(shortlist.filterNot { it.jwId == jwId })
+
+    fun clearShortlist() = saveShortlist(emptyList())
+
+    private fun saveShortlist(films: List<ShelfFilm>) {
+        shortlist = films
+        uiPrefs.edit().putString("shortlist", Json.encodeToString(shortlistSerializer, films)).apply()
+    }
+
     init {
         account.deviceKey?.let { connect(it) }
         shelfStore.onSyncError = { e ->
@@ -165,9 +199,11 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         toast(message)
     }
 
-    private fun toast(message: String) = Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    private fun toast(message: String, length: Int = Toast.LENGTH_LONG) = Toast.makeText(context, message, length).show()
 
-    private fun allIds(shelves: List<Shelf> = shelfStore.shelves.value) = shelves.flatMap { s -> s.films.map { it.jwId } }
+    // Shortlisted films stay loaded even if they're later taken off every shelf.
+    private fun allIds(shelves: List<Shelf> = shelfStore.shelves.value) =
+        (shelves.flatMap { s -> s.films.map { it.jwId } } + shortlist.map { it.jwId }).distinct()
 
     fun load() = scope.launch {
         films = repository.cached()
@@ -196,3 +232,5 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         Toast.makeText(context, "Added ${film.title} to $shelf", Toast.LENGTH_SHORT).show()
     }
 }
+
+private val shortlistSerializer = ListSerializer(ShelfFilm.serializer())

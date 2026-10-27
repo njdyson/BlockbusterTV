@@ -43,6 +43,7 @@ import com.njdyson.blockbustertv.data.FilmLauncher
 import com.njdyson.blockbustertv.linklab.qrCode
 import com.njdyson.blockbustertv.data.Offer
 import com.njdyson.blockbustertv.data.OfferKind
+import com.njdyson.blockbustertv.data.ShelfFilm
 import com.njdyson.blockbustertv.data.Tmdb
 
 /** The back of the box: synopsis and details, with a button for each way to watch. */
@@ -150,10 +151,15 @@ fun DetailScreen(app: AppState, film: Film) {
                         modifier = Modifier.focusIf("store", offers == stores.values.first()),
                     ) { app.launcher.watch(film, offers.first()) }
                 }
-                trailerId?.let { id ->
-                    SectionLabel("EXTRAS")
-                    OutlinedButton(onClick = { app.launcher.trailer(id) }) {
-                        Text("▶  Play trailer")
+                SectionLabel("EXTRAS")
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    trailerId?.let { id ->
+                        OutlinedButton(onClick = { app.launcher.trailer(id) }) {
+                            Text("▶  Play trailer")
+                        }
+                    }
+                    OutlinedButton(onClick = { app.toggleShortlist(ShelfFilm(film.jwId, film.imdbId, film.title, film.year, film.poster)) }) {
+                        Text(if (app.isShortlisted(film.jwId)) "★  On the shortlist" else "☆  Add to shortlist")
                     }
                 }
             }

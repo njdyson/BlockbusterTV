@@ -175,3 +175,18 @@ fun Film.metaLine(): String = listOfNotNull(
     ageCertification,
     imdbScore?.let { String.format(Locale.UK, "IMDb %.1f/10", it) },
 ).joinToString("  ·  ")
+
+/** The yellow "on the shortlist" tag in the corner of a box. */
+@Composable
+fun ShortlistTag(modifier: Modifier = Modifier) {
+    Text(
+        "★ SHORTLIST",
+        color = NightNavy,
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Black,
+        letterSpacing = 0.5.sp,
+        modifier = modifier
+            .background(TicketYellow, RoundedCornerShape(3.dp))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
+}
