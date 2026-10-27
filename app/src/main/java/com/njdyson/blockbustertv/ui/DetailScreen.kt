@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,12 +73,7 @@ fun DetailScreen(app: AppState, film: Film) {
                     .background(Color(0xFF0D0D12), RoundedCornerShape(8.dp))
                     .padding(6.dp),
             ) {
-                AsyncImage(
-                    model = film.posterLarge,
-                    contentDescription = film.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp)),
-                )
+                Poster(film.posterLarge, film.title, Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp)))
                 RatingSticker(film.imdbScore, size = 52.dp, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {

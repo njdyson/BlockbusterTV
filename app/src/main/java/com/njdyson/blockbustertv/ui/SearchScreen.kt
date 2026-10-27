@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,7 +34,6 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import coil.compose.AsyncImage
 import com.njdyson.blockbustertv.data.Person
 import com.njdyson.blockbustertv.data.SearchFilters
 import com.njdyson.blockbustertv.data.SearchSort
@@ -126,7 +124,7 @@ fun SearchScreen(app: AppState) {
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
                 ) {
                     Column {
-                        AsyncImage(film.poster, film.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(168.dp))
+                        Poster(film.poster, film.title, Modifier.fillMaxWidth().height(168.dp))
                         Column(Modifier.padding(6.dp)) {
                             Text(film.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(film.year?.toString().orEmpty(), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)

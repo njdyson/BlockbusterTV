@@ -66,7 +66,16 @@
   .films { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; scroll-snap-type: x proximity; }
   .film { flex: none; width: 96px; scroll-snap-align: start; position: relative; }
   .film img, .film .noposter { width: 96px; height: 144px; object-fit: cover; border-radius: 5px; background: #000; display: block; }
-  .noposter { display: flex !important; align-items: center; justify-content: center; text-align: center; padding: 6px; font-size: 12px; color: var(--muted); }
+  /* Stand-in for missing or broken art: same size as a poster, title on a store-blue case
+     with yellow label stripes. Background is !important to beat the per-context #000. */
+  .noposter { display: flex !important; align-items: center; justify-content: center; text-align: center; position: relative; overflow: hidden; min-height: 0;
+    padding: 20px 8px; font-size: 13px; font-weight: 700; line-height: 1.2; color: var(--text);
+    background: linear-gradient(160deg, var(--blue), var(--navy) 85%) !important; }
+  .noposter::before, .noposter::after { content: ""; position: absolute; left: 0; right: 0; height: 4%; background: var(--yellow); }
+  .noposter::before { top: 6%; }
+  .noposter::after { bottom: 6%; }
+  .noposter span { width: 100%; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .sheet-head .noposter { font-size: 8px; padding: 8px 3px; }
   .film .name { font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .film .tools { display: flex; gap: 4px; margin-top: 4px; }
   .film .tools button { flex: 1; padding: 4px 0; font-size: 13px; }
@@ -124,7 +133,7 @@
   .tile { all: unset; cursor: pointer; background: var(--shelf); border-radius: 10px; padding: 8px; display: block; min-width: 0; }
   .mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
   .mosaic img, .mosaic .noposter, .mosaic .blank { width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 3px; background: #000; display: block; }
-  .mosaic .noposter { font-size: 10px; padding: 3px; }
+  .mosaic .noposter { font-size: 9px; padding: 10px 3px; }
   .mosaic .blank { background: rgba(255,255,255,.05); }
   .tile .tname { font-weight: 800; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile .tcount { color: var(--muted); font-size: 12px; }
@@ -350,10 +359,13 @@ async function op(body) {
   }
 }
 
+/** A film's poster, or a same-size placeholder with its title when there's no art or the art fails to load. */
 function poster(film) {
-  return film.poster
-    ? el("img", { src: film.poster, alt: "", loading: "lazy" })
-    : el("div", { className: "noposter", textContent: film.title });
+  const placeholder = () => el("div", { className: "noposter" }, el("span", { textContent: film.title || "" }));
+  if (!film.poster) return placeholder();
+  const img = el("img", { src: film.poster, alt: "", loading: "lazy" });
+  img.onerror = () => img.replaceWith(placeholder());
+  return img;
 }
 
 let view = localStorage.getItem("bbtv_view") || "shelves";

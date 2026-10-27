@@ -4,13 +4,20 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.Alignment
@@ -20,6 +27,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,6 +92,50 @@ fun Backdrop(url: String?, alpha: Float = 0.45f) {
                 ),
             )
         }
+    }
+}
+
+/**
+ * A film's poster filling [modifier]. With no art, or art that fails to load, it shows a
+ * same-size stand-in instead: the title on a store-blue case with yellow label stripes.
+ */
+@Composable
+fun Poster(url: String?, title: String, modifier: Modifier = Modifier) {
+    var failed by remember(url) { mutableStateOf(false) }
+    if (url == null || failed) {
+        PosterPlaceholder(title, modifier)
+    } else {
+        AsyncImage(
+            model = url,
+            contentDescription = title,
+            contentScale = ContentScale.Crop,
+            onError = { failed = true },
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun PosterPlaceholder(title: String, modifier: Modifier) {
+    BoxWithConstraints(
+        modifier.background(Brush.linearGradient(listOf(StoreBlue, NightNavy))),
+        contentAlignment = Alignment.Center,
+    ) {
+        val inset = maxHeight * 0.06f
+        val stripe = Modifier.fillMaxWidth().height(maxHeight * 0.04f).background(TicketYellow)
+        Box(Modifier.align(Alignment.TopCenter).padding(top = inset).then(stripe))
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = inset).then(stripe))
+        Text(
+            title,
+            color = Color.White,
+            fontSize = (maxWidth.value * 0.11f).coerceIn(7f, 22f).sp,
+            lineHeight = (maxWidth.value * 0.13f).coerceIn(8f, 26f).sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 5,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = maxWidth * 0.08f, vertical = maxHeight * 0.14f),
+        )
     }
 }
 
