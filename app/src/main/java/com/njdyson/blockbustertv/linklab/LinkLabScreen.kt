@@ -4,6 +4,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,6 +76,7 @@ fun LinkLabScreen(resumeCount: Int) {
     var showReport by remember { mutableStateOf(false) }
     var lastError by remember { mutableStateOf<String?>(null) }
     var focusedTest by remember { mutableStateOf<ServiceTest?>(null) }
+    var inspecting by remember { mutableStateOf<String?>(null) }
 
     // Back from the other app: ask how it went.
     LaunchedEffect(resumeCount) {
@@ -138,6 +140,7 @@ fun LinkLabScreen(resumeCount: Int) {
                         val handler = resolveHandler(context, link)
                         fire(linkId(test, i), "${test.serviceName}: ${link.label}", handler) { launchLink(context, link) }
                     },
+                    onInspect = { pkg -> inspecting = pkg },
                     onHome = { pkg ->
                         fire("${test.service}#home", "${test.serviceName}: app home", pkg) { launchAppHome(context, pkg) }
                     },
@@ -156,6 +159,7 @@ fun LinkLabScreen(resumeCount: Int) {
                 store.pending = null
             })
         }
+        inspecting?.let { pkg -> InspectDialog(pkg, onDismiss = { inspecting = null }) }
         if (showReport) {
             ReportDialog(buildReport(device, tests, results), tests, results, onDismiss = { showReport = false })
         }
@@ -212,6 +216,7 @@ private fun ServiceRow(
     installed: String?,
     onLink: (Int, LinkSpec) -> Unit,
     onHome: (String) -> Unit,
+    onInspect: (String) -> Unit,
 ) {
     val context = LocalContext.current
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -234,7 +239,7 @@ private fun ServiceRow(
                     LinkCard(
                         title = "${i + 1}. ${link.label}",
                         detail = link.uri,
-                        handler = handler?.let { "→ $it" } ?: "→ no handler found",
+                        handler = "→ ${handlerName(handler)}",
                         result = results[linkId(test, i)],
                         onClick = { onLink(i, link) },
                     )
@@ -247,6 +252,15 @@ private fun ServiceRow(
                             handler = "→ $installed",
                             result = results["${test.service}#home"],
                             onClick = { onHome(installed) },
+                        )
+                    }
+                    item {
+                        LinkCard(
+                            title = "Inspect: link formats",
+                            detail = "Lists the deep links $installed says it accepts",
+                            handler = "",
+                            result = null,
+                            onClick = { onInspect(installed) },
                         )
                     }
                 }
@@ -388,4 +402,61 @@ private fun Poster(url: String?, modifier: Modifier) {
         contentScale = ContentScale.Crop,
         modifier = modifier.background(ShelfGrey, RoundedCornerShape(6.dp)),
     )
+}
+
+@Composable
+private fun InspectDialog(pkg: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val lines = remember(pkg) {
+        runCatching { deepLinkFilters(context, pkg).map { it.toString() } }
+            .getOrElse { listOf("Could not read the manifest: ${it.message}") }
+            .ifEmpty { listOf("No VIEW links declared") }
+    }
+    // Keep the QR scannable: the on-screen list is complete, the QR holds as much as fits.
+    val report = remember(lines) {
+        buildString {
+            appendLine("BBTV inspect $pkg")
+            for (line in lines) {
+                if (length + line.length > 1800) { appendLine("…"); break }
+                appendLine(line)
+            }
+        }
+    }
+    val qr = remember(report) { qrCode(report) }
+    val close = remember { FocusRequester() }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Row(
+            Modifier
+                .padding(32.dp)
+                .background(Color.White, RoundedCornerShape(12.dp))
+                .padding(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Image(qr, contentDescription = "Link formats QR code", filterQuality = FilterQuality.None, modifier = Modifier.size(300.dp))
+                Button(onClick = onDismiss, modifier = Modifier.focusRequester(close)) { Text("Close") }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(pkg, color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("${lines.size} link formats. Scroll with up/down.", color = Color.DarkGray, fontSize = 12.sp)
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(lines) { line ->
+                        var focused by remember { mutableStateOf(false) }
+                        Text(
+                            line,
+                            color = Color.Black,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { focused = it.isFocused }
+                                .background(if (focused) TicketYellow else Color.Transparent)
+                                .focusable()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+    LaunchedEffect(Unit) { runCatching { close.requestFocus() } }
 }
