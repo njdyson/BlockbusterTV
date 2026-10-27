@@ -1,0 +1,235 @@
+{
+  "region": "GB",
+  "tests": [
+    {
+      "service": "netflix",
+      "serviceName": "Netflix",
+      "film": "Animals (2026)",
+      "imdbId": "tt31049299",
+      "packages": [
+        "com.netflix.ninja",
+        "com.netflix.mediaclient"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Fire TV link",
+          "uri": "intent://www.netflix.com/watch/81757047#Intent;launchFlags=0x00800000;scheme=https;package=com.netflix.ninja;S.source=30;end"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://www.netflix.com/title/81757047"
+        },
+        {
+          "label": "Spec: https title URL",
+          "uri": "https://www.netflix.com/title/81757047",
+          "package": "com.netflix.ninja"
+        },
+        {
+          "label": "https watch URL",
+          "uri": "https://www.netflix.com/watch/81757047",
+          "package": "com.netflix.ninja"
+        },
+        {
+          "label": "netflix:// scheme",
+          "uri": "netflix://title/81757047",
+          "package": null
+        }
+      ]
+    },
+    {
+      "service": "prime",
+      "serviceName": "Prime Video",
+      "film": "Good Luck, Have Fun, Don't Die (2026)",
+      "imdbId": "tt1341338",
+      "packages": [
+        "com.amazon.avod",
+        "com.amazon.amazonvideo.livingroom",
+        "com.amazon.avod.thirdpartyclient"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Fire TV link",
+          "uri": "intent://com.amazon.tv.launcher/detail?provider=aiv&providerId=B0GT1TF51V#Intent;package=com.amazon.tv.launcher;scheme=amzn;end"
+        },
+        {
+          "label": "JustWatch Android TV link",
+          "uri": "intent://watch.amazon.co.uk/watch?asin=B0GT1TF51V&time=0&territory=GB#Intent;package=com.amazon.amazonvideo.livingroom;scheme=https;end"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://watch.amazon.co.uk/detail?gti=amzn1.dv.gti.07af89f2-8d13-4a69-b013-589f898d41d9"
+        },
+        {
+          "label": "Spec: app.primevideo.com detail",
+          "uri": "https://app.primevideo.com/detail?gti=amzn1.dv.gti.07af89f2-8d13-4a69-b013-589f898d41d9",
+          "package": null
+        }
+      ]
+    },
+    {
+      "service": "disney",
+      "serviceName": "Disney+",
+      "film": "Toy Story 5 (2026)",
+      "imdbId": "tt29355505",
+      "packages": [
+        "com.disney.disneyplus"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Fire TV link",
+          "uri": "intent://www.disneyplus.com/play/c99203fc-eeff-4531-a35e-1f558bedce4f#Intent;launchFlags=0x00800000;scheme=https;end"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://www.disneyplus.com/browse/entity-c99203fc-eeff-4531-a35e-1f558bedce4f"
+        }
+      ]
+    },
+    {
+      "service": "appletv",
+      "serviceName": "Apple TV",
+      "film": "The Social Network (2010)",
+      "imdbId": "tt1285016",
+      "packages": [
+        "com.apple.atve.amazon.appletv",
+        "com.apple.atve.androidtv.appletv"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Fire TV link",
+          "uri": "intent://tv.apple.com/gb/movie/the-social-network/umc.cmc.36jj4rzu3eh9jk7uhicvr4vhb#Intent;launchFlags=0x00800000;scheme=https;end"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://tv.apple.com/gb/movie/the-social-network/umc.cmc.36jj4rzu3eh9jk7uhicvr4vhb?at=1000l3V2&ct=app_tvplus&itscg=30200&itsct=justwatch_tv"
+        }
+      ]
+    },
+    {
+      "service": "iplayer",
+      "serviceName": "BBC iPlayer",
+      "film": "The Substance (2024)",
+      "imdbId": "tt17526714",
+      "packages": [
+        "uk.co.bbc.iplayer",
+        "bbc.iplayer.android",
+        "uk.co.bbc.iplayer.tv"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Android TV link",
+          "uri": "intent://iplayer/playback/0/m00327nr/-1#Intent;launchFlags=0x00800000;scheme=bbc;end"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "http://www.bbc.co.uk/iplayer/episode/m00327nr"
+        }
+      ]
+    },
+    {
+      "service": "itvx",
+      "serviceName": "ITVX",
+      "film": "Coraline (2009)",
+      "imdbId": "tt0327597",
+      "packages": [
+        "air.ITVMobilePlayer",
+        "com.itv.tenft.itvhub"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Fire TV link",
+          "uri": "intent://com.itv.tenft.itvhub/playvideo?productionId=10a3200#Intent;launchFlags=0x00800000;scheme=itvhomescreenchannels;component=air.ITVMobilePlayer/com.itv.tenft.itvhub.RecommendationActivity"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://www.itv.com/watch/coraline/10a3200"
+        }
+      ]
+    },
+    {
+      "service": "channel4",
+      "serviceName": "Channel 4",
+      "film": "Jennifer's Body (2009)",
+      "imdbId": "tt1131734",
+      "packages": [
+        "com.channel4.ondemand",
+        "com.channel4.ondemand.firetv"
+      ],
+      "links": [
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://www.channel4.com/programmes/jennifers-body/on-demand/48988-001"
+        }
+      ]
+    },
+    {
+      "service": "now",
+      "serviceName": "NOW",
+      "film": "Practical Magic (1998)",
+      "imdbId": "tt0120791",
+      "packages": [
+        "com.nowtv.nowtvapp",
+        "com.bskyb.nowtv.beta",
+        "com.nowtv.firetv"
+      ],
+      "links": [
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://www.nowtv.com/watch/practical-magic/A5EK4Gos4kywLGqpBsQXJ?"
+        }
+      ]
+    },
+    {
+      "service": "plex",
+      "serviceName": "Plex",
+      "film": "The Big Short (2015)",
+      "imdbId": "tt1596363",
+      "packages": [
+        "com.plexapp.android"
+      ],
+      "links": [
+        {
+          "label": "JustWatch Fire TV link",
+          "uri": "intent://watch.plex.tv/movie/the-big-short?autoplay=1&utm_content=5d776b679ab544002150af34&utm_medium=deeplink&utm_source=justWatch-v2-catalog#Intent;launchFlags=0x00800000;scheme=https;end"
+        },
+        {
+          "label": "Web URL (no package)",
+          "uri": "https://watch.plex.tv/movie/the-big-short?autoplay=1&utm_content=5d776b679ab544002150af34&utm_medium=deeplink&utm_source=justWatch-v2-catalog"
+        }
+      ]
+    },
+    {
+      "service": "youtube",
+      "serviceName": "YouTube",
+      "film": "Inception (2010)",
+      "imdbId": "tt1375666",
+      "packages": [
+        "com.amazon.firetv.youtube",
+        "com.google.android.youtube.tv",
+        "com.google.android.youtube"
+      ],
+      "links": [
+        {
+          "label": "Trailer via vnd.youtube://",
+          "uri": "vnd.youtube://YoHD9XEInc0"
+        },
+        {
+          "label": "Trailer via https watch URL",
+          "uri": "https://www.youtube.com/watch?v=YoHD9XEInc0"
+        },
+        {
+          "label": "Store page via vnd.youtube://",
+          "uri": "vnd.youtube://bewVnEugEqE"
+        },
+        {
+          "label": "Store page via https watch URL",
+          "uri": "https://www.youtube.com/watch?v=bewVnEugEqE"
+        },
+        {
+          "label": "Search for film (buy flow)",
+          "uri": "https://www.youtube.com/results?search_query=Inception+2010"
+        }
+      ]
+    }
+  ]
+}
