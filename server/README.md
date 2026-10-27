@@ -16,8 +16,8 @@ phone app, and lets TVs link to an account and sync.
 
 Plesk Git keeps the code up to date; PocketBase runs as a background service straight
 from the folder Plesk deploys to. After the one-time setup in step 4, each deploy updates
-the server by itself: changed API code reloads within seconds and the phone app files
-are served as they are. The database lives in a separate folder that deploys never touch.
+the server by itself: when a deploy changes the API code or migrations, the service restarts
+about ten seconds later, and the phone app files are served as they are. The database lives in a separate folder that deploys never touch.
 
 1. **Subdomain:** **Websites & Domains > Add Subdomain**, `blockbuster` under `psybob.uk`,
    default document root. Make sure DNS has a record for it (automatic if Plesk runs the
@@ -48,6 +48,10 @@ are served as they are. The database lives in a separate folder that deploys nev
    It downloads PocketBase, sets it up as a service that starts with the server, and creates
    the dashboard admin. The database goes in `/var/www/vhosts/psybob.uk/blockbuster-data`.
    (Running it again is safe; it's only needed again if an update says so.)
+
+   **Update (auto restart):** if you set the server up before the auto restart was added,
+   run the same task once more, without the ADMIN_ settings. From then on, deploys restart
+   the service by themselves.
 5. **Connect the subdomain to it:** on the subdomain, **Apache & nginx Settings**, paste
    `deploy/nginx-directives.conf` into **Additional nginx directives**, and save.
 6. **Check:** https://blockbuster.psybob.uk shows the sign-in page, and

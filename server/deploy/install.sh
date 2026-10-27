@@ -88,9 +88,43 @@ LimitNOFILE=4096
 WantedBy=multi-user.target
 UNIT
 
+# Plesk Git mode: restart the server whenever a deploy changes its API code or migrations.
+# PocketBase's own reload on hook changes can catch a deploy halfway and leave the
+# /api/bbtv routes missing (the phone app then shows no shelves), so a clean restart
+# follows a few seconds after the files stop changing. Restarting also applies new migrations.
+if [ -n "$APP_DIR" ]; then
+  cat > "/etc/systemd/system/$SERVICE-redeploy.path" <<UNIT
+[Unit]
+Description=Restart BlockbusterTV when a deploy changes its code
+
+[Path]
+PathChanged=$SRC/pb_hooks
+PathChanged=$SRC/pb_migrations
+Unit=$SERVICE-redeploy.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  cat > "/etc/systemd/system/$SERVICE-redeploy.service" <<UNIT
+[Unit]
+Description=Restart BlockbusterTV after a deploy
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'sleep 10; systemctl restart $SERVICE'
+UNIT
+else
+  systemctl disable --now --quiet "$SERVICE-redeploy.path" 2>/dev/null || true
+  rm -f "/etc/systemd/system/$SERVICE-redeploy.path" "/etc/systemd/system/$SERVICE-redeploy.service"
+fi
+
 # Apply any new database migrations, then (re)start.
 sudo -u "$RUN_AS" "$BIN_DIR/pocketbase" migrate up $PB_ARGS
 systemctl daemon-reload
+if [ -n "$APP_DIR" ]; then
+  systemctl enable --quiet "$SERVICE-redeploy.path"
+  systemctl restart "$SERVICE-redeploy.path"
+fi
 systemctl enable --quiet "$SERVICE"
 systemctl restart "$SERVICE"
 sleep 2
