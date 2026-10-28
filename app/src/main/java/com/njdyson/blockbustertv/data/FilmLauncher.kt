@@ -43,6 +43,26 @@ class FilmLauncher(private val context: Context, private val services: Services)
         toast("Opening YouTube: find \"${film.title}\" in Library > Your movies")
     }
 
+    /**
+     * A film on the user's own Plex server. Opens the film's page in the Plex app (Link Lab
+     * confirmed those links land on the film), which lists the server's copy as a way to watch.
+     * Without a page link, opens Plex's home screen with the title to search for.
+     */
+    fun watchOnPlex(film: Film, pageUrl: String?) {
+        val app = appLaunchIntent(context, Plex.PACKAGE)
+        if (app == null) {
+            toast("Plex isn't installed on this device")
+            return
+        }
+        val page = pageUrl?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)).setPackage(Plex.PACKAGE) }
+        if (page != null && opensInApp(page) && start(page)) {
+            toast("Opening Plex: if it offers more than one way to watch, pick your own server")
+            return
+        }
+        start(app)
+        toast("Opening Plex: search for \"${film.title}\" in your library")
+    }
+
     fun openYouTube() {
         youTubePackage()?.let { appLaunchIntent(context, it) }?.let { start(it) } ?: toast("YouTube isn't installed on this device")
     }

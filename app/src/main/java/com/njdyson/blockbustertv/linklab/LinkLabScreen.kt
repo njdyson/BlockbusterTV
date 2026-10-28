@@ -63,9 +63,11 @@ import com.njdyson.blockbustertv.ui.TicketYellow
  * The results screen shows a QR code of the report to send back.
  */
 @Composable
-fun LinkLabScreen(resumeCount: Int) {
+fun LinkLabScreen(resumeCount: Int, extraTests: List<ServiceTest> = emptyList()) {
     val context = LocalContext.current
-    val tests = remember { loadLinkTests(context) }
+    // Extra tests (e.g. for the user's own Plex server) are built in the app, ahead of the fixed ones.
+    val fixedTests = remember { loadLinkTests(context) }
+    val tests = remember(extraTests) { extraTests + fixedTests }
     val store = remember { ResultStore(context) }
     val device = remember { deviceInfo() }
     var apps by remember { mutableStateOf(installedStreamingApps(context)) }

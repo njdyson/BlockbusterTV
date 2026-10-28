@@ -49,9 +49,12 @@ import com.njdyson.blockbustertv.data.FilmLauncher
 import com.njdyson.blockbustertv.linklab.qrCode
 import com.njdyson.blockbustertv.data.Offer
 import com.njdyson.blockbustertv.data.OfferKind
+import com.njdyson.blockbustertv.data.Plex
 import com.njdyson.blockbustertv.data.ShelfFilm
 import com.njdyson.blockbustertv.data.Tmdb
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** The back of the box: synopsis and details, with a button for each way to watch. */
 @Composable
@@ -78,6 +81,12 @@ fun DetailScreen(app: AppState, film: Film) {
     val owned by app.shelfStore.owned.collectAsState()
     // Owning on YouTube is for films; series don't offer it.
     val ownedOnYouTube = !film.isSeries && film.jwId in owned
+    val plexCopy = app.plexCopy(film)
+    // The film's page in the Plex app, looked up when the page opens so the button is instant.
+    var plexPage by remember(film.jwId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(plexCopy?.plexId) {
+        plexPage = plexCopy?.plexId?.let { id -> withContext(Dispatchers.IO) { Plex.pageUrl(id) } }
+    }
     var buying by remember { mutableStateOf(false) }
     val trailerButton = remember { FocusRequester() }
     var trailersClosed by remember(film.jwId) { mutableStateOf(0) }
@@ -117,8 +126,9 @@ fun DetailScreen(app: AppState, film: Film) {
                 )
                 Spacer(Modifier.height(6.dp))
 
-                // Initial focus: owned on YouTube, else the first Watch button, else the first store.
+                // Initial focus: on Plex, else owned on YouTube, else the first Watch button, else the first store.
                 val focusTarget = when {
+                    plexCopy != null -> "plex"
                     ownedOnYouTube -> "owned"
                     watch.isNotEmpty() -> "watch"
                     else -> "store"
@@ -126,17 +136,30 @@ fun DetailScreen(app: AppState, film: Film) {
                 fun Modifier.focusIf(target: String, isFirst: Boolean = true): Modifier =
                     if (target == focusTarget && isFirst) focusRequester(firstButton) else this
 
-                if (watch.isNotEmpty() || ownedOnYouTube) {
+                if (watch.isNotEmpty() || ownedOnYouTube || plexCopy != null) {
                     SectionLabel("WATCH NOW")
-                    // null stands for the "owned on YouTube" button, shown first.
-                    val watchButtons: List<Offer?> = (if (ownedOnYouTube) listOf(null) else emptyList()) + watch
-                    ButtonRow(watchButtons) { offer ->
-                        if (offer == null) {
-                            IconButton(
-                                icon = FilmLauncher.YOUTUBE_ICON, label = "YouTube", note = "You own this",
-                                primary = true, modifier = Modifier.focusIf("owned"),
-                            ) { app.launcher.watchOwnedOnYouTube(film) }
-                            return@ButtonRow
+                    // Your own copies first: on your Plex server, then owned on YouTube.
+                    val watchButtons: List<WatchButton> = listOfNotNull(
+                        WatchButton.OnPlex.takeIf { plexCopy != null },
+                        WatchButton.OwnedOnYouTube.takeIf { ownedOnYouTube },
+                    ) + watch.map { WatchButton.Service(it) }
+                    ButtonRow(watchButtons) { button ->
+                        val offer = when (button) {
+                            WatchButton.OnPlex -> {
+                                IconButton(
+                                    icon = Plex.ICON, label = "Plex", note = "On your server",
+                                    primary = true, modifier = Modifier.focusIf("plex"),
+                                ) { app.launcher.watchOnPlex(film, plexPage) }
+                                return@ButtonRow
+                            }
+                            WatchButton.OwnedOnYouTube -> {
+                                IconButton(
+                                    icon = FilmLauncher.YOUTUBE_ICON, label = "YouTube", note = "You own this",
+                                    primary = true, modifier = Modifier.focusIf("owned"),
+                                ) { app.launcher.watchOwnedOnYouTube(film) }
+                                return@ButtonRow
+                            }
+                            is WatchButton.Service -> button.offer
                         }
                         ServiceButton(
                             app, offer,
@@ -196,7 +219,7 @@ fun DetailScreen(app: AppState, film: Film) {
             }
         }
     }
-    LaunchedEffect(film.jwId, ownedOnYouTube) { firstButton.requestFocusWhenReady() }
+    LaunchedEffect(film.jwId, ownedOnYouTube, plexCopy != null) { firstButton.requestFocusWhenReady() }
 
     // Back from a trailer: focus returns to its button.
     LaunchedEffect(trailersClosed) { if (trailersClosed > 0) trailerButton.requestFocusWhenReady() }
@@ -267,6 +290,13 @@ private fun SectionLabel(text: String) {
 }
 
 /** A plain Row, not a LazyRow: lazy lists clip, which cut off the focused button as it grows. */
+/** A button under WATCH NOW: the user's own copy on Plex or YouTube, or a streaming service's offer. */
+private sealed interface WatchButton {
+    data object OnPlex : WatchButton
+    data object OwnedOnYouTube : WatchButton
+    data class Service(val offer: Offer) : WatchButton
+}
+
 @Composable
 private fun <T> ButtonRow(items: List<T>, content: @Composable (T) -> Unit) {
     Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {

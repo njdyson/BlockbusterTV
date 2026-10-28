@@ -75,6 +75,7 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
                         title = film.title,
                         fallbackPoster = film.poster,
                         ownedOnYouTube = film.jwId in owned,
+                        onPlex = app.plexCopy(film) != null,
                         shortlisted = app.isShortlisted(film.jwId),
                         requestFocus = i == 0 && focused == null,
                         onFocused = { focused = film.jwId },

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,11 +30,11 @@ import com.njdyson.blockbustertv.update.UpdateButton
 import com.njdyson.blockbustertv.update.Updater
 
 @Composable
-fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, onLinkLab: () -> Unit) {
+fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, onLinkLab: () -> Unit, onPlexLink: () -> Unit) {
     val first = remember { FocusRequester() }
     var choosingAge by remember { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxSize().background(NightNavy).padding(horizontal = 48.dp, vertical = 32.dp),
+        Modifier.fillMaxSize().background(NightNavy).verticalScroll(rememberScrollState()).padding(horizontal = 48.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Logo()
@@ -65,6 +67,26 @@ fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, o
 
         OutlinedButton(onClick = { app.refresh() }) { Text("Refresh films and availability now") }
         app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }
+
+        val plexLibrary = app.plex.library
+        if (app.plex.connected) {
+            Text(
+                app.plexStatus ?: plexLibrary?.let { "Plex: ${app.plexSummary(it)}." } ?: "Plex: connected, films not read yet.",
+                color = Color.White,
+                fontSize = 14.sp,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedButton(onClick = { app.refreshPlex() }) { Text("Refresh Plex films") }
+                OutlinedButton(onClick = { app.disconnectPlex() }) { Text("Disconnect Plex") }
+            }
+        } else {
+            Text(
+                "Plex: connect your Plex server to see which films you already have, and play them in the Plex app.",
+                color = Color.White,
+                fontSize = 14.sp,
+            )
+            OutlinedButton(onClick = onPlexLink) { Text("Connect your Plex server") }
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = onLinkLab) { Text("Link Lab: test how each streaming app opens") }
