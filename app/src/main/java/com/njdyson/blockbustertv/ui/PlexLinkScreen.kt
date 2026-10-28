@@ -37,8 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Connects the user's Plex server: shows a code to enter at plex.tv/link, then finds the
- * server on the home network and reads its films. Or the address and token typed in by hand.
+ * Connects the user's Plex server: shows a code to enter at plex.tv/link, then finds a server
+ * the account can see (its own or a friend's) and reads its films. Or the address and token typed in by hand.
  */
 @Composable
 fun PlexLinkScreen(app: AppState, onDone: () -> Unit) {
@@ -106,7 +106,7 @@ fun PlexLinkScreen(app: AppState, onDone: () -> Unit) {
             Logo()
             Text("Connect your Plex server", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             if (manual && !finished) {
-                Text("Your server's address on the home network, e.g. 192.168.1.20", color = Color.White, fontSize = 15.sp)
+                Text("The server's address, e.g. 192.168.1.20 at home, or its internet address and port", color = Color.White, fontSize = 15.sp)
                 TvTextField(placeholder = "NAS address", autoFocus = true, value = address, onValueChange = { address = it }, onSubmit = { address = it })
                 Text("Your Plex token (Plex Web: a film's ⋯ menu, Get Info, View XML: it's after X-Plex-Token= in the address)", color = Color.White, fontSize = 15.sp)
                 TvTextField(placeholder = "Plex token", autoFocus = false, value = token, onValueChange = { token = it }, onSubmit = { token = it })
@@ -129,7 +129,7 @@ fun PlexLinkScreen(app: AppState, onDone: () -> Unit) {
                 Text("1. On your phone, go to plex.tv/link (or scan the code) and sign in to Plex.", color = Color.White, fontSize = 16.sp)
                 Text("2. Enter this code:", color = Color.White, fontSize = 16.sp)
                 Text(current, color = TicketYellow, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp)
-                Text("This TV must be on the same home network as the Plex server.", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                Text("Works with your own server or one a friend shares with you.", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
             }
             Text(message, color = Color.White.copy(alpha = 0.85f), fontSize = 15.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {

@@ -37,8 +37,8 @@ data class PlexLibrary(val serverName: String, val machineId: String, val films:
 data class PlexServer(val name: String, val machineId: String, val baseUrl: String, val token: String)
 
 /**
- * The user's Plex Media Server (e.g. on a NAS): which films it holds, read over the home
- * network, so the app can show which films are "On Plex". Kept on this TV only.
+ * The user's Plex Media Server (their own, or one a friend shares with them): which films it
+ * holds, so the app can show which films are "On Plex". Kept on this TV only.
  */
 class PlexStore(context: Context) {
     private val prefs = context.getSharedPreferences("plex", Context.MODE_PRIVATE)
@@ -69,9 +69,9 @@ class PlexStore(context: Context) {
     fun isStale(maxAgeMs: Long = 6 * 60 * 60 * 1000L) =
         connected && System.currentTimeMillis() - (library?.refreshedAt ?: 0) > maxAgeMs
 
-    /** Signed in at plex.tv/link: finds the account's server on the home network and reads its films. Blocking. */
+    /** Signed in at plex.tv/link: finds a server the account can see (its own or one shared with it) and reads its films. Blocking. */
     fun connectWithAccount(accountToken: String): PlexLibrary {
-        val server = Plex.findServer(clientId, accountToken) ?: error("Couldn't reach your Plex server. Is it switched on, and is this TV on the same network?")
+        val server = Plex.findServer(clientId, accountToken) ?: error("Couldn't reach a Plex server on your account. Is it switched on, with Remote Access on if it's away from home?")
         save(server, accountToken)
         return refresh()
     }
@@ -133,7 +133,10 @@ object Plex {
     fun checkPin(clientId: String, pin: Pin): String? =
         json.parseToJsonElement(get("https://plex.tv/api/v2/pins/${pin.id}", clientId)).jsonObject.str("authToken")?.ifBlank { null }
 
-    /** The account's own server, at the first address that answers: home network first, then over the internet. */
+    /**
+     * A server the account can see, its own first, then ones friends share with it, at the first
+     * address that answers: home network first, then over the internet, then Plex's relay.
+     */
     fun findServer(clientId: String, accountToken: String): PlexServer? {
         val resources = json.parseToJsonElement(
             get("https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1", clientId, accountToken),

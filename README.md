@@ -63,7 +63,8 @@ purchases appear under Library. Owned films are saved with the shelves.
 
 **Your own Plex server:** Settings > Connect your Plex server shows a code to enter
 at plex.tv/link (or takes the server's address and an X-Plex-Token typed in). The
-TV then reads the films in every film library on the server over the home network,
+TV then finds a server the account can see (its own, or a friend's shared one), reads
+the films in every film library on it,
 matches them by IMDb ID (title and year for films Plex couldn't identify), and shows
 a Plex icon on their boxes and a Plex button first under Watch now. They count as
 free to watch. The button opens the film's watch.plex.tv page in the Plex app; Link
