@@ -8,14 +8,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -109,7 +111,12 @@ fun DetailScreen(app: AppState, film: Film) {
                 Poster(film.posterLarge, film.title, Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp)))
                 RatingSticker(film.imdbScore, size = 52.dp, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Scrolls, so a long synopsis or wide rows can't squash the last rows to nothing:
+            // the focused button is scrolled into view as you move down.
+            Column(
+                Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Text(film.title, color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(film.metaLine(), color = TicketYellow, fontSize = 16.sp)
                 if (film.genres.isNotEmpty()) {
@@ -120,12 +127,10 @@ fun DetailScreen(app: AppState, film: Film) {
                     color = Color.White.copy(alpha = 0.9f),
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
-                    maxLines = 5,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(0.85f),
                 )
-                Spacer(Modifier.height(6.dp))
-
                 // Initial focus: on Plex, else owned on YouTube, else the first Watch button, else the first store.
                 val focusTarget = when {
                     plexCopy != null -> "plex"
@@ -206,7 +211,7 @@ fun DetailScreen(app: AppState, film: Film) {
                     ) { app.launcher.watch(film, offers.first()) }
                 }
                 SectionLabel("EXTRAS")
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     trailerId?.let { id ->
                         OutlinedButton(onClick = { trailerPlayer.launch(TrailerActivity.intent(context, id, film.title)) }, modifier = Modifier.focusRequester(trailerButton)) {
                             Text("▶  Play trailer")
