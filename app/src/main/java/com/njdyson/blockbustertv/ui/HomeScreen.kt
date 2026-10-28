@@ -135,7 +135,7 @@ fun HomeScreen(
         Backdrop(focusedFilm?.backdrop)
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 16.dp),
+                Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -165,7 +165,8 @@ fun HomeScreen(
                 })
                 return@Column
             }
-            Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp))
+            // Fixed height so the shelf below stays put whatever the blurb length.
+            Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp).height(152.dp))
             if (shelves.isEmpty()) {
                 Text(
                     if (app.freeOnly && allShelves.isNotEmpty()) "Nothing on your shelves is free to watch right now. Choose Show all films to see everything."
@@ -180,8 +181,12 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 itemsIndexed(shelves, key = { _, shelf -> shelf.id }) { shelfIndex, shelf ->
-                    Column(Modifier.fillParentMaxHeight().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ShelfSign(shelf.name)
+                    Column(Modifier.fillParentMaxHeight().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ShelfSign(shelf.name)
+                            Spacer(Modifier.weight(1f))
+                            shelves.getOrNull(shelfIndex - 1)?.let { ShelfHint(HeaderIcons.ChevronUp, it.name, Modifier.padding(end = 48.dp)) }
+                        }
                         if (shelf.films.isEmpty()) {
                             Text(
                                 "Empty shelf: add films with Add film or from your phone.",
@@ -192,7 +197,7 @@ fun HomeScreen(
                         }
                         LazyRow(
                             state = app.shelfState(shelf.id),
-                            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
                             val items = shelf.displayItems(app.shuffleSeed, yearOf)
@@ -227,18 +232,14 @@ fun HomeScreen(
                                 }
                             }
                         }
+                        // Down leads to the next shelf.
+                        Spacer(Modifier.weight(1f))
+                        shelves.getOrNull(shelfIndex + 1)?.let {
+                            ShelfHint(HeaderIcons.ChevronDown, it.name, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 6.dp))
+                        }
                     }
                 }
             }
-            Text(
-                (if (app.freeOnly) "Showing films included on your services or owned on YouTube · " else "") +
-                    "Availability and ratings from JustWatch · Hold Select on a box to make sets or remove it · Press ⏯ on a box to shortlist it",
-                color = Color.White.copy(alpha = 0.4f),
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 12.dp),
-            )
         }
     }
 
@@ -338,7 +339,7 @@ private class Naming(val title: String, val initial: String, val confirm: String
 
 @Composable
 private fun Preview(film: Film?, set: SetItem?, modifier: Modifier) {
-    Column(modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (set != null) {
             Text(set.set.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Box set · ${set.films.size} films", color = TicketYellow, fontSize = 15.sp)
@@ -352,8 +353,19 @@ private fun Preview(film: Film?, set: SetItem?, modifier: Modifier) {
             film.synopsis.orEmpty(),
             color = Color.White.copy(alpha = 0.85f),
             fontSize = 14.sp,
-            modifier = Modifier.fillMaxWidth(0.75f),
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(0.8f),
         )
+    }
+}
+
+/** A faint arrow and shelf name showing where Up or Down goes. */
+@Composable
+private fun ShelfHint(icon: ImageVector, name: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+        Text(name.uppercase(), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, maxLines = 1)
     }
 }
 

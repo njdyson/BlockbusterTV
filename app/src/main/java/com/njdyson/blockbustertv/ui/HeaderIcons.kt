@@ -7,13 +7,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
-/** Small 24x24 icons for the home header, drawn here so the app needs no icon library. */
+/** Small 24x24 icons for the home screen, drawn here so the app needs no icon library. */
 object HeaderIcons {
     /** Three stacked bars: the shelves view. */
     val Shelves = icon("Shelves", "M3,4h18v4.5H3z M3,9.75h18v4.5H3z M3,15.5h18v4.5H3z")
 
     /** Four squares: the tile overview. */
     val Tiles = icon("Tiles", "M4,4h7v7H4z M13,4h7v7h-7z M4,13h7v7H4z M13,13h7v7h-7z")
+
+    /** Material "expand less" and "expand more" chevrons, for the shelf hints. */
+    val ChevronUp = icon("ChevronUp", "M12,8l-6,6 1.41,1.41L12,10.83l4.59,4.58L18,14z")
+    val ChevronDown = icon("ChevronDown", "M16.59,8.59L12,13.17 7.41,8.59 6,10l6,6 6,-6z")
 
     /** Material "settings" gear. */
     val Settings = icon(
