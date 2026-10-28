@@ -46,7 +46,7 @@ try:
     call("GET", "/api/collections/libraries/records", token=token, expect=403)
 
     lib = call("GET", "/api/bbtv/library", token=token)
-    assert lib == {"version": 1, "shelves": [], "owned": []}, lib
+    assert lib == {"version": 1, "shelves": [], "series": [], "owned": []}, lib
 
     # Edits.
     lib = call("POST", "/api/bbtv/op", {"op": "addShelf", "name": "Saturday"}, token=token)
@@ -104,6 +104,27 @@ try:
     call("POST", "/api/bbtv/op", {"op": "deleteShelf", "shelf": "rocky000"}, token=token)
     print("sets and shuffle ok")
 
+    # Series shelves: kept apart from film shelves, and only hold series.
+    lib = call("POST", "/api/bbtv/op", {"op": "addShelf", "name": "Box sets to binge", "kind": "series", "id": "tvshows1"}, token=token)
+    assert lib["created"] == "tvshows1" and [s["id"] for s in lib["series"]] == ["tvshows1"], lib
+    assert all(s["id"] != "tvshows1" for s in lib["shelves"]), lib["shelves"]
+    show = {"jwId": "ts131317", "imdbId": "tt5875444", "title": "Slow Horses", "year": 2022, "poster": None}
+    call("POST", "/api/bbtv/op", {"op": "addFilm", "shelf": "tvshows1", "film": show}, token=token)
+    call("POST", "/api/bbtv/op", {"op": "addFilm", "shelf": "tvshows1", "film": film}, token=token, expect=400)  # a film
+    call("POST", "/api/bbtv/op", {"op": "addFilm", "shelf": shelf, "film": show}, token=token, expect=400)  # on a film shelf
+    call("POST", "/api/bbtv/op", {"op": "addShelf", "name": "Clash", "kind": "series", "id": shelf}, token=token)  # IDs unique across both
+    lib = call("GET", "/api/bbtv/library", token=token)
+    assert len({s["id"] for s in lib["shelves"] + lib["series"]}) == len(lib["shelves"]) + len(lib["series"]), lib
+    call("POST", "/api/bbtv/op", {"op": "renameShelf", "shelf": "tvshows1", "name": "Bingeing"}, token=token)
+    lib = call("POST", "/api/bbtv/op", {"op": "pinShelf", "shelf": "tvshows1", "pinned": True}, token=token)
+    assert lib["series"][0]["name"] == "Bingeing" and lib["series"][0]["pinned"] and lib["series"][0]["films"][0]["title"] == "Slow Horses"
+    assert lib["shelves"][0]["id"] == shelf, lib["shelves"]  # pinning a series shelf leaves film shelves alone
+    for s in lib["series"][1:]:
+        call("POST", "/api/bbtv/op", {"op": "deleteShelf", "shelf": s["id"]}, token=token)
+    lib = call("GET", "/api/bbtv/library", token=token)
+    assert [s["name"] for s in lib["series"]] == ["Bingeing"] and lib["shelves"][0]["name"] == "Saturday Night", lib
+    print("series shelves ok")
+
     # Import only replaces an existing library when asked.
     other = {"version": 1, "shelves": [{"id": "x1", "name": "Imported", "films": []}], "owned": []}
     assert call("POST", "/api/bbtv/import", {"data": other}, token=token)["shelves"][0]["name"] == "Saturday Night"
@@ -127,6 +148,14 @@ try:
     assert film["cast"][0]["name"] == "Leonardo DiCaprio" and film["genres"], film["cast"][:2]
     assert film["offers"] and all(o["kind"] in ("watch", "rent", "buy") for o in film["offers"]), film["offers"][:2]
     call("GET", "/api/bbtv/film?id=nonsense", token=token, expect=400)
+    shows = call("GET", "/api/bbtv/search?q=slow%20horses&type=series", token=token)
+    assert shows and all(s["jwId"].startswith("ts") for s in shows) and shows[0]["title"] == "Slow Horses", shows[:2]
+    assert all(f["jwId"].startswith("tm") for f in call("GET", "/api/bbtv/search?q=slow%20horses", token=token))
+    show = call("GET", "/api/bbtv/film?id=ts131317", token=token)
+    assert show["series"] and show["title"] == "Slow Horses" and show["seasonCount"] >= 5 and show["directors"] == [], show
+    assert show["cast"] and show["offers"], show
+    # Prime Video has only the first season, so it says so; Apple TV has them all.
+    print("  series offers:", [(o["provider"], o["kind"], o["seasons"]) for o in show["offers"] if o["kind"] == "watch"])
     print(f"film details ok ({len(film['offers'])} offers, {len(film['cast'])} cast)")
     print(f"advanced search ok (Nolan: {len(films)} films, 80s sci-fi: {len(eighties)})")
 

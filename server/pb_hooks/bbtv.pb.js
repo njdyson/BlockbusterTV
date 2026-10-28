@@ -30,22 +30,23 @@ routerAdd("POST", "/api/bbtv/import", (e) => {
   const body = e.requestInfo().body
   const incoming = body.data || {}
   const current = lib.load(user.id)
-  if (current.shelves.length && !body.replace) return e.json(200, current)
-  const data = { version: 1, shelves: incoming.shelves || [], owned: incoming.owned || [] }
+  if ((current.shelves.length || current.series.length) && !body.replace) return e.json(200, current)
+  const data = { version: 1, shelves: incoming.shelves || [], series: incoming.series || [], owned: incoming.owned || [] }
   return e.json(200, lib.save(user.id, data))
 })
 
-// Film search: ?q=&person=&genres=&yearMin=&yearMax=&minRating=&services=&sort= (all optional).
+// Film search: ?q=&person=&genres=&yearMin=&yearMax=&minRating=&services=&sort= (all optional),
+// or series search with &type=series.
 routerAdd("GET", "/api/bbtv/search", (e) => {
   const lib = require(`${__hooks}/bbtv_lib.js`)
   lib.caller(e)
   const q = e.request.url.query()
   const params = {}
-  for (const key of ["q", "person", "genres", "yearMin", "yearMax", "minRating", "services", "sort"]) params[key] = q.get(key)
+  for (const key of ["q", "person", "genres", "yearMin", "yearMax", "minRating", "services", "sort", "type"]) params[key] = q.get(key)
   return e.json(200, lib.search(params))
 })
 
-// A film's details, cast and where to watch it: ?id=tm92641
+// A film's or series' details, cast and where to watch it: ?id=tm92641 or ?id=ts131317
 routerAdd("GET", "/api/bbtv/film", (e) => {
   const lib = require(`${__hooks}/bbtv_lib.js`)
   lib.caller(e)
