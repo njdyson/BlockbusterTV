@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.OutlinedIconButton
 import androidx.tv.material3.Surface
@@ -83,7 +84,8 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onShortlist: () -> Unit,
 ) {
-    val savedShelves by app.shelfStore.shelves.collectAsState()
+    // Film shelves, or series shelves in series mode.
+    val savedShelves by app.currentShelves.collectAsState()
     // Shelves, and the films on them, in a random order that's new each session (AppState.shuffleSeed).
     val allShelves = remember(savedShelves, app.shuffleSeed) { savedShelves.shuffled(app.shuffleSeed) }
     val owned by app.shelfStore.owned.collectAsState()
@@ -141,13 +143,15 @@ fun HomeScreen(
             ) {
                 Logo()
                 Spacer(Modifier.width(8.dp))
+                ModeToggle(app.seriesMode) { app.showSeries(!app.seriesMode) }
                 // The status takes whatever room the buttons leave and is cut short rather than squeezing them.
                 Box(Modifier.weight(1f)) {
                     app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
-                HeaderButton(if (app.freeOnly) "Show all films" else "Free to watch") { app.showFreeOnly(!app.freeOnly) }
-                HeaderButton(if (app.shortlist.isEmpty()) "Shortlist" else "Shortlist (${app.shortlist.size})", onShortlist)
-                HeaderButton("Add film", onSearch)
+                HeaderButton(if (app.freeOnly) "Show all ${app.noun}" else "Free to watch") { app.showFreeOnly(!app.freeOnly) }
+                val shortlisted = app.currentShortlist.size
+                HeaderButton(if (shortlisted == 0) "Shortlist" else "Shortlist ($shortlisted)", onShortlist)
+                HeaderButton(if (app.seriesMode) "Add series" else "Add film", onSearch)
                 HeaderButton("Edit on phone", onPhoneEdit)
                 // Shows the view the press switches to.
                 HeaderIconButton(
@@ -169,8 +173,11 @@ fun HomeScreen(
             Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp).height(152.dp))
             if (shelves.isEmpty()) {
                 Text(
-                    if (app.freeOnly && allShelves.isNotEmpty()) "Nothing on your shelves is free to watch right now. Choose Show all films to see everything."
-                    else "No shelves yet. Choose Edit on phone or Add film to start one.",
+                    when {
+                        app.freeOnly && allShelves.isNotEmpty() -> "Nothing on your shelves is free to watch right now. Choose Show all ${app.noun} to see everything."
+                        app.seriesMode -> "No series shelves yet. Choose Add series, or switch to Series in the phone app, to start one."
+                        else -> "No shelves yet. Choose Edit on phone or Add film to start one."
+                    },
                     color = Color.White,
                     fontSize = 18.sp,
                     modifier = Modifier.padding(48.dp),
@@ -189,7 +196,8 @@ fun HomeScreen(
                         }
                         if (shelf.films.isEmpty()) {
                             Text(
-                                "Empty shelf: add films with Add film or from your phone.",
+                                if (app.seriesMode) "Empty shelf: add series with Add series or from your phone."
+                                else "Empty shelf: add films with Add film or from your phone.",
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 48.dp, vertical = 8.dp),
@@ -255,8 +263,9 @@ fun HomeScreen(
                 when (item) {
                     is FilmItem -> {
                         add((if (app.isShortlisted(item.film.jwId)) "Take off the shortlist" else "Add to the shortlist") to { app.toggleShortlist(item.film) })
-                        if (loose.size > 1) add("Make a set with other films…" to { gathering = SetGathering(shelf, item.film, null) })
-                        if (shelf.sets.isNotEmpty()) add("Add to a set…" to { choosingSet = shelf to item.film })
+                        // Box sets are for films; series shelves don't offer them.
+                        if (!app.seriesMode && loose.size > 1) add("Make a set with other films…" to { gathering = SetGathering(shelf, item.film, null) })
+                        if (!app.seriesMode && shelf.sets.isNotEmpty()) add("Add to a set…" to { choosingSet = shelf to item.film })
                         add("Add to another shelf…" to { copying = item.film })
                         add("Remove from ${shelf.name}" to {
                             app.focusedKey = null
@@ -323,7 +332,7 @@ fun HomeScreen(
         ShelfPicker(
             allShelves,
             onPick = { shelfId, newName ->
-                app.addToShelf(shelfId ?: app.shelfStore.addShelf(newName.orEmpty()), film)
+                app.addToShelf(shelfId ?: app.shelfStore.addShelf(newName.orEmpty(), app.seriesMode), film)
                 copying = null
             },
             onDismiss = { copying = null },
@@ -529,7 +538,11 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
                         }
                         Text(shelf.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            if (shelf.films.size == 1) "1 film" else "${shelf.films.size} films",
+                            when {
+                                app.seriesMode -> "${shelf.films.size} series"
+                                shelf.films.size == 1 -> "1 film"
+                                else -> "${shelf.films.size} films"
+                            },
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.6f),
                         )
@@ -538,6 +551,35 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
             }
         }
     }
+}
+
+/**
+ * Films | Series: shows both, with the current one highlighted; pressing it switches.
+ * The two are kept apart: each has its own shelves, search and shortlist.
+ */
+@Composable
+private fun ModeToggle(series: Boolean, onToggle: () -> Unit) {
+    OutlinedButton(onClick = onToggle, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            ModeLabel("Films", on = !series)
+            ModeLabel("Series", on = series)
+        }
+    }
+}
+
+@Composable
+private fun ModeLabel(label: String, on: Boolean) {
+    Text(
+        label,
+        fontSize = 13.sp,
+        fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+        color = if (on) NightNavy else LocalContentColor.current.copy(alpha = 0.7f),
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier
+            .background(if (on) TicketYellow else Color.Transparent, RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 2.dp),
+    )
 }
 
 /** A compact header button whose label always stays on one line. */

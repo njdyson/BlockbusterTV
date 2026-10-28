@@ -35,8 +35,11 @@ function requireUser(e) {
 }
 
 function emptyLibrary() {
-  return { version: 1, shelves: [], owned: [] }
+  return { version: 1, shelves: [], series: [], owned: [] }
 }
+
+/** Film shelves and series shelves are kept apart: series shelves only hold series. */
+const isSeriesId = (jwId) => /^ts\d+$/.test(String(jwId || ""))
 
 function findLibrary(userId) {
   try {
@@ -50,7 +53,9 @@ function load(userId) {
   const record = findLibrary(userId)
   if (!record) return emptyLibrary()
   const data = JSON.parse(record.getString("data") || "null") || emptyLibrary()
-  data.shelves = (data.shelves || []).map((shelf) => ({ ...shelf, sets: shelf.sets || [], shuffle: !!shelf.shuffle, pinned: !!shelf.pinned }))
+  const clean = (shelf) => ({ ...shelf, sets: shelf.sets || [], shuffle: !!shelf.shuffle, pinned: !!shelf.pinned })
+  data.shelves = (data.shelves || []).map(clean)
+  data.series = (data.series || []).map(clean)
   data.owned = data.owned || []
   return data
 }
@@ -108,10 +113,15 @@ function newId(wanted, taken) {
   return /^[a-z0-9]{8}$/.test(wanted) && !taken.some((x) => x.id === wanted) ? wanted : randomId()
 }
 
-/** The edits both apps send, mirroring the TV's ShelfStore. */
+/**
+ * The edits both apps send, mirroring the TV's ShelfStore. Shelf IDs are unique across film
+ * and series shelves, so every edit but addShelf finds its shelf in whichever list holds it.
+ */
 function applyOp(data, op) {
+  data.series = data.series || []
+  const listOf = (id) => (data.series.some((s) => s.id === id) ? "series" : "shelves")
   const shelf = () => {
-    const found = data.shelves.find((s) => s.id === op.shelf)
+    const found = data[listOf(op.shelf)].find((s) => s.id === op.shelf)
     if (!found) throw new BadRequestError("That shelf no longer exists.")
     found.sets = found.sets || []
     return found
@@ -125,8 +135,9 @@ function applyOp(data, op) {
     case "addShelf": {
       // The TV picks the ID so its own copy matches straight away; otherwise make one.
       const wanted = String(op.id || "")
-      const id = /^[a-z0-9]{8}$/.test(wanted) && !data.shelves.some((s) => s.id === wanted) ? wanted : randomId()
-      data.shelves.push({ id, name: String(op.name || "").trim() || "New shelf", films: [], sets: [], shuffle: false, pinned: false })
+      const taken = [...data.shelves, ...data.series]
+      const id = /^[a-z0-9]{8}$/.test(wanted) && !taken.some((s) => s.id === wanted) ? wanted : randomId()
+      data[op.kind === "series" ? "series" : "shelves"].push({ id, name: String(op.name || "").trim() || "New shelf", films: [], sets: [], shuffle: false, pinned: false })
       return id
     }
     case "renameShelf": {
@@ -136,14 +147,20 @@ function applyOp(data, op) {
     }
     case "deleteShelf":
       data.shelves = data.shelves.filter((s) => s.id !== op.shelf)
+      data.series = data.series.filter((s) => s.id !== op.shelf)
       return null
-    case "moveShelf":
-      move(data.shelves, data.shelves.findIndex((s) => s.id === op.shelf), op.delta | 0)
+    case "moveShelf": {
+      const list = data[listOf(op.shelf)]
+      move(list, list.findIndex((s) => s.id === op.shelf), op.delta | 0)
       return null
+    }
     case "addFilm": {
       const f = op.film || {}
       if (!f.jwId) throw new BadRequestError("Missing film.")
       const s = shelf()
+      if (isSeriesId(f.jwId) !== (listOf(s.id) === "series")) {
+        throw new BadRequestError(isSeriesId(f.jwId) ? "Series go on series shelves." : "Films go on film shelves.")
+      }
       if (!s.films.some((x) => x.jwId === f.jwId)) {
         s.films.push({ jwId: f.jwId, imdbId: f.imdbId || "", title: f.title || "", year: f.year || null, poster: f.poster || null })
       }
@@ -171,7 +188,8 @@ function applyOp(data, op) {
     case "pinShelf": {
       const s = shelf()
       s.pinned = !!op.pinned
-      if (s.pinned) data.shelves = [s, ...data.shelves.filter((x) => x !== s)]
+      const list = listOf(s.id)
+      if (s.pinned) data[list] = [s, ...data[list].filter((x) => x !== s)]
       return null
     }
     case "setShuffle":
@@ -262,13 +280,14 @@ function gql(query, variables) {
 }
 
 /**
- * Film search on JustWatch (GB). Every part is optional and they combine:
- * q (title), person (JustWatch person ID, e.g. "tp1725"), genres (codes like "scf"),
- * yearMin/yearMax, minRating (IMDb), services (our IDs: streaming there now), sort.
+ * Film search on JustWatch (GB), or series search with type "series". Every other part is
+ * optional and they combine: q (title), person (JustWatch person ID, e.g. "tp1725"), genres
+ * (codes like "scf"), yearMin/yearMax, minRating (IMDb), services (our IDs: streaming there now), sort.
  */
 function search(params) {
   const p = params || {}
-  const filter = { objectTypes: ["MOVIE"] }
+  const series = p.type === "series"
+  const filter = { objectTypes: [series ? "SHOW" : "MOVIE"] }
   const text = String(p.q || "").trim()
   if (text) filter.searchQuery = text
   if (/^tp\d+$/.test(p.person || "")) filter.personId = p.person
@@ -286,7 +305,7 @@ function search(params) {
   if (Object.keys(filter).length === 1) return []
   const query = `query($filter: TitleFilter!, $sort: PopularTitlesSorting!) {
     popularTitles(country: GB, first: 24, sortBy: $sort, filter: $filter) {
-      edges { node { id ... on Movie { content(country: GB, language: "en") {
+      edges { node { id ... on ${series ? "Show" : "Movie"} { content(country: GB, language: "en") {
         title originalReleaseYear posterUrl externalIds { imdbId } scoring { imdbScore } } } } } } }`
   const data = gql(query, { filter, sort: SORTS[p.sort] || "POPULAR" })
   return (data.popularTitles.edges || []).map((edge) => {
@@ -317,34 +336,61 @@ function people(text) {
 const GENRE_NAMES = {
   act: "Action", ani: "Animation", cmy: "Comedy", crm: "Crime", doc: "Documentary", drm: "Drama",
   fnt: "Fantasy", fml: "Family", hst: "History", hrr: "Horror", msc: "Music", rma: "Romance",
-  scf: "Sci-Fi", spt: "Sport", trl: "Thriller", war: "War", wsn: "Western",
+  scf: "Sci-Fi", spt: "Sport", trl: "Thriller", war: "War", wsn: "Western", rly: "Reality TV",
 }
 
 function jwImage(path, profile, format) {
   return path ? "https://images.justwatch.com" + path.replace("{profile}", profile).replace("{format}", format || "jpg") : null
 }
 
-/** Everything about one film for the phone app's film page: details, people, where to watch. */
+/** "Season 1", "Seasons 1–3", "Seasons 1–2, 5". */
+function seasonsLabel(numbers) {
+  const ranges = []
+  for (const n of numbers) {
+    const last = ranges[ranges.length - 1]
+    if (last && n === last[1] + 1) last[1] = n
+    else ranges.push([n, n])
+  }
+  const text = ranges.map(([a, b]) => (a === b ? String(a) : `${a}–${b}`)).join(", ")
+  return (numbers.length === 1 ? "Season " : "Seasons ") + text
+}
+
+const OFFER_KINDS = { FLATRATE: "watch", FREE: "watch", ADS: "watch", RENT: "rent", BUY: "buy" }
+
+/**
+ * Everything about one film or series for the phone app's page: details, people, where to
+ * watch. For a series, each way to watch says which seasons it has when it isn't all of them.
+ */
 function filmDetails(id) {
-  if (!/^tm\d+$/.test(String(id || ""))) throw new BadRequestError("Unknown film.")
-  const query = `query($id: ID!) { node(id: $id) { id ... on Movie {
+  id = String(id || "")
+  const series = /^ts\d+$/.test(id)
+  if (!series && !/^tm\d+$/.test(id)) throw new BadRequestError("Unknown film.")
+  const offerFields = `monetizationType retailPrice(language: "en") retailPriceValue standardWebURL
+      package { technicalName clearName shortName icon }`
+  const query = `query($id: ID!) { node(id: $id) { id ... on ${series ? "Show" : "Movie"} {
     content(country: GB, language: "en") {
       title originalReleaseYear shortDescription runtime ageCertification
       genres { shortName } scoring { imdbScore imdbVotes } externalIds { imdbId tmdbId }
       posterUrl backdrops { backdropUrl } credits { role name personId characterName }
     }
-    offers(country: GB, platform: WEB) {
-      monetizationType retailPrice(language: "en") retailPriceValue standardWebURL
-      package { technicalName clearName shortName icon }
-    } } } }`
+    offers(country: GB, platform: WEB) { ${offerFields} }
+    ${series ? `totalSeasonCount seasons(sortDirection: ASC) {
+      content(country: GB, language: "en") { seasonNumber }
+      offers(country: GB, platform: WEB) { monetizationType package { clearName } } }` : ""}
+  } } }`
   const node = gql(query, { id }).node
-  if (!node || !node.content) throw new NotFoundError("Film not found.")
+  if (!node || !node.content) throw new NotFoundError(series ? "Series not found." : "Film not found.")
   const c = node.content
   const ours = Object.values(SERVICE_PACKAGES)
+  // A series' seasons (specials, season 0, aside) and which kind+provider has each.
+  const seasons = (node.seasons || []).filter((season) => season.content && season.content.seasonNumber > 0)
+  const seasonsWith = (kind, provider) => seasons
+    .filter((season) => (season.offers || []).some((o) => OFFER_KINDS[o.monetizationType] === kind && o.package.clearName === provider))
+    .map((season) => season.content.seasonNumber)
   // One entry per provider and kind (JustWatch lists SD, HD and 4K separately), cheapest first.
   const offers = {}
   for (const o of node.offers || []) {
-    const kind = { FLATRATE: "watch", FREE: "watch", ADS: "watch", RENT: "rent", BUY: "buy" }[o.monetizationType]
+    const kind = OFFER_KINDS[o.monetizationType]
     if (!kind) continue
     // Shops listed without a price sell discs (e.g. Zavvi), not streams.
     if (kind !== "watch" && !o.retailPrice) continue
@@ -360,24 +406,34 @@ function filmDetails(id) {
       url: o.standardWebURL || null,
       mine: ours.includes(o.package.shortName),
       free: o.monetizationType !== "FLATRATE" && kind === "watch",
+      seasons: null,
+    }
+  }
+  if (seasons.length > 1) {
+    for (const offer of Object.values(offers)) {
+      const have = seasonsWith(offer.kind, offer.provider)
+      if (have.length && have.length < seasons.length) offer.seasons = seasonsLabel(have)
     }
   }
   const credits = c.credits || []
   const person = (cr) => ({ id: "tp" + cr.personId, name: cr.name, character: cr.characterName || null })
   return {
     jwId: node.id,
+    series,
     imdbId: (c.externalIds && c.externalIds.imdbId) || "",
     title: c.title || "",
     year: c.originalReleaseYear || null,
     synopsis: c.shortDescription || "",
     runtime: c.runtime || null,
+    seasonCount: series ? node.totalSeasonCount || seasons.length || null : null,
     ageCertification: c.ageCertification || null,
     genres: (c.genres || []).map((g) => GENRE_NAMES[g.shortName]).filter(Boolean),
     rating: (c.scoring && c.scoring.imdbScore) || null,
     votes: (c.scoring && c.scoring.imdbVotes) || null,
     poster: jwImage(c.posterUrl, "s332"),
     backdrop: jwImage(c.backdrops && c.backdrops[0] && c.backdrops[0].backdropUrl, "s1440"),
-    directors: credits.filter((cr) => cr.role === "DIRECTOR").map(person),
+    // A series' directors are per episode, so only films list them.
+    directors: series ? [] : credits.filter((cr) => cr.role === "DIRECTOR").map(person),
     cast: credits.filter((cr) => cr.role === "ACTOR").slice(0, 12).map(person),
     // Your services first, then cheapest.
     offers: Object.values(offers).sort((a, b) => (b.mine - a.mine) || ((a.priceValue || 0) - (b.priceValue || 0))),

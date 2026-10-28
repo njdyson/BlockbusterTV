@@ -49,6 +49,8 @@ data class Shelf(
 data class ShelvesFile(
     val version: Int = 1,
     val shelves: List<Shelf>,
+    /** Series shelves, kept apart from the film shelves above. */
+    val series: List<Shelf> = emptyList(),
     /** JustWatch IDs of films bought on YouTube / Google TV, so their Watch button opens YouTube. */
     val owned: List<String> = emptyList(),
 )
@@ -74,17 +76,21 @@ class ShelfStore(context: Context) {
     private val saved = load(context)
     private val _shelves = MutableStateFlow(saved.shelves)
     val shelves: StateFlow<List<Shelf>> = _shelves.asStateFlow()
+    private val _series = MutableStateFlow(saved.series)
+    /** Series shelves. Shelf IDs are unique across both lists, so edits by shelf ID work on either. */
+    val series: StateFlow<List<Shelf>> = _series.asStateFlow()
     private val _owned = MutableStateFlow(saved.owned.toSet())
     val owned: StateFlow<Set<String>> = _owned.asStateFlow()
 
     fun export(): String = json.encodeToString(ShelvesFile.serializer(), snapshot())
 
-    fun snapshot() = ShelvesFile(shelves = _shelves.value, owned = _owned.value.sorted())
+    fun snapshot() = ShelvesFile(shelves = _shelves.value, series = _series.value, owned = _owned.value.sorted())
 
     /** Replaces everything with the server's copy. */
     @Synchronized
     fun replace(file: ShelvesFile) {
         _shelves.value = file.shelves
+        _series.value = file.series
         _owned.value = file.owned.toSet()
         save()
     }
@@ -96,12 +102,13 @@ class ShelfStore(context: Context) {
         send("setOwned") { put("jwId", jwId); put("owned", owned) }
     }
 
-    fun addShelf(name: String): String {
+    /** A new film shelf, or a series shelf with [series]. */
+    fun addShelf(name: String, series: Boolean = false): String {
         // Lower-case letters and digits, which the server accepts as the shelf's ID too.
         val id = UUID.randomUUID().toString().replace("-", "").take(8)
         val clean = name.trim().ifEmpty { "New shelf" }
-        update { it + Shelf(id, clean, emptyList()) }
-        send("addShelf") { put("id", id); put("name", clean) }
+        update(series) { it + Shelf(id, clean, emptyList()) }
+        send("addShelf") { put("id", id); put("name", clean); if (series) put("kind", "series") }
         return id
     }
 
@@ -190,9 +197,22 @@ class ShelfStore(context: Context) {
 
     private fun updateShelf(id: String, change: (Shelf) -> Shelf) = update { list -> list.map { if (it.id == id) change(it) else it } }
 
+    /**
+     * Changes the film shelves and the series shelves alike: every edit but adding a shelf
+     * is by shelf ID, so it only touches the list that holds that shelf.
+     */
     @Synchronized
     private fun update(change: (List<Shelf>) -> List<Shelf>) {
         _shelves.value = change(_shelves.value)
+        _series.value = change(_series.value)
+        save()
+    }
+
+    /** Changes only the series shelves ([series]) or only the film shelves. */
+    @Synchronized
+    private fun update(series: Boolean, change: (List<Shelf>) -> List<Shelf>) {
+        val list = if (series) _series else _shelves
+        list.value = change(list.value)
         save()
     }
 
