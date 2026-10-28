@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import com.njdyson.blockbustertv.linklab.LinkLabScreen
@@ -53,7 +54,8 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 while (true) {
                     delay(60_000)
-                    app.sync()
+                    // Not while a trailer is playing on top: it competes with the video for the Fire Stick's CPU.
+                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) app.sync()
                 }
             }
 
