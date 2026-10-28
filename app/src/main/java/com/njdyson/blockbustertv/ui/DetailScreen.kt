@@ -25,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,7 @@ import com.njdyson.blockbustertv.data.ShelfFilm
 import com.njdyson.blockbustertv.data.Tmdb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** The back of the box: synopsis and details, with a button for each way to watch. */
@@ -86,8 +88,9 @@ fun DetailScreen(app: AppState, film: Film) {
     val plexCopy = app.plexCopy(film)
     // The film's page in the Plex app, looked up when the page opens so the button is instant.
     var plexPage by remember(film.jwId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(plexCopy?.plexId) {
-        plexPage = plexCopy?.plexId?.let { id -> withContext(Dispatchers.IO) { Plex.pageUrl(id) } }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(plexCopy) {
+        plexPage = plexCopy?.let { copy -> withContext(Dispatchers.IO) { Plex.pageUrlFor(copy, film.title, film.year) } }
     }
     var buying by remember { mutableStateOf(false) }
     val trailerButton = remember { FocusRequester() }
@@ -154,7 +157,14 @@ fun DetailScreen(app: AppState, film: Film) {
                                 IconButton(
                                     icon = Plex.ICON, label = "Plex", note = "On your server",
                                     primary = true, modifier = Modifier.focusIf("plex"),
-                                ) { app.launcher.watchOnPlex(film, plexPage) }
+                                ) {
+                                    // Pressed before the page link was looked up: look it up first rather than fall back to Plex's home.
+                                    if (plexPage != null) app.launcher.watchOnPlex(film, plexPage)
+                                    else scope.launch {
+                                        plexPage = plexCopy?.let { copy -> withContext(Dispatchers.IO) { Plex.pageUrlFor(copy, film.title, film.year) } }
+                                        app.launcher.watchOnPlex(film, plexPage)
+                                    }
+                                }
                                 return@ButtonRow
                             }
                             WatchButton.OwnedOnYouTube -> {

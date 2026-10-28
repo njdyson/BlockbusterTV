@@ -54,7 +54,11 @@ class FilmLauncher(private val context: Context, private val services: Services)
             toast("Plex isn't installed on this device")
             return
         }
-        val page = pageUrl?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)).setPackage(Plex.PACKAGE) }
+        // A fresh Plex task: when Plex was already open it showed what it had open (or its home)
+        // instead of the film, so it's restarted the way it opens from cold, which does go to the film.
+        val page = pageUrl?.let {
+            Intent(Intent.ACTION_VIEW, Uri.parse(it)).setPackage(Plex.PACKAGE).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
         if (page != null && opensInApp(page) && start(page)) {
             toast("Opening Plex: if it offers more than one way to watch, pick your own server")
             return

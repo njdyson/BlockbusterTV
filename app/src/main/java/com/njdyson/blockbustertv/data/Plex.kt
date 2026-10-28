@@ -203,6 +203,28 @@ object Plex {
         film?.str("publicPagesURL") ?: film?.str("slug")?.let { "https://watch.plex.tv/movie/$it" }
     }.getOrNull()
 
+    /**
+     * The film's watch.plex.tv page found by title and year, for films the server has no Plex ID
+     * for (older Plex agents). No sign-in needed.
+     */
+    fun searchPageUrl(title: String, year: Int?): String? = runCatching {
+        val query = URLEncoder.encode(title, "UTF-8")
+        val text = get("https://discover.provider.plex.tv/library/search?query=$query&limit=10&searchTypes=movies&searchProviders=discover", null)
+        json.parseToJsonElement(text).jsonObject.container()["SearchResults"]?.jsonArray.orEmpty()
+            .flatMap { it.jsonObject["SearchResult"]?.jsonArray.orEmpty() }
+            .mapNotNull { it.jsonObject["Metadata"]?.jsonObject }
+            .filter { it.str("type") == null || it.str("type") == "movie" }
+            .firstOrNull { m ->
+                val y = m["year"]?.jsonPrimitive?.intOrNull
+                m.str("title").equals(title, ignoreCase = true) && (year == null || y == null || kotlin.math.abs(y - year) <= 1)
+            }
+            ?.let { it.str("publicPagesURL") ?: it.str("slug")?.let { slug -> "https://watch.plex.tv/movie/$slug" } }
+    }.getOrNull()
+
+    /** The film's watch.plex.tv page: from Plex's own ID when the server has one, else by title and year. */
+    fun pageUrlFor(copy: PlexFilm, title: String, year: Int?): String? =
+        copy.plexId?.let { pageUrl(it) } ?: searchPageUrl(title, year)
+
     private fun get(url: String, clientId: String?, token: String? = null, method: String = "GET", timeoutMs: Int = 15_000): String {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.requestMethod = method
