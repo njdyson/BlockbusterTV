@@ -66,7 +66,8 @@ fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, o
         }
 
         OutlinedButton(onClick = { app.refresh() }) { Text("Refresh films and availability now") }
-        app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }
+        (app.status ?: "Couldn't reach JustWatch last time: showing saved films.".takeIf { app.usingSavedFilms })
+            ?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }
 
         val plexLibrary = app.plex.library
         if (app.plex.connected) {
