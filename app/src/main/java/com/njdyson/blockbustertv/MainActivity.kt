@@ -49,7 +49,11 @@ class MainActivity : ComponentActivity() {
                     .collect { app.fetchMissing(it) }
             }
             // Linked TVs pick up edits from the phone app and other TVs.
-            LaunchedEffect(resumeCount.intValue) { app.sync() }
+            LaunchedEffect(resumeCount.intValue) {
+                app.sync()
+                // A failed refresh (e.g. the Wi-Fi wasn't up yet) is retried quietly on returning to the app.
+                if (app.usingSavedFilms) app.refresh()
+            }
             LaunchedEffect(Unit) {
                 while (true) {
                     delay(60_000)

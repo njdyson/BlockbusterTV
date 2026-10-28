@@ -72,6 +72,9 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         private set
     var status by mutableStateOf<String?>(null)
         private set
+    /** True when the last refresh failed but saved films are showing. Only Settings says so; it's retried on resume. */
+    var usingSavedFilms by mutableStateOf(false)
+        private set
 
     private val shelfStates = mutableMapOf<String, LazyListState>()
     fun shelfState(shelfId: String): LazyListState = shelfStates.getOrPut(shelfId) { LazyListState() }
@@ -354,9 +357,11 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         status = "Checking what's streaming…"
         status = try {
             films = repository.refresh(allIds())
+            usingSavedFilms = false
             null
         } catch (e: Exception) {
-            if (films.isEmpty()) "Couldn't load films: ${e.message}" else "Offline: showing saved films"
+            usingSavedFilms = films.isNotEmpty()
+            if (films.isEmpty()) "Couldn't load films: ${e.message}" else null
         }
     }
 
