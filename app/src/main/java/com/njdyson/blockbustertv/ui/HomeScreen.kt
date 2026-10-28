@@ -63,6 +63,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.OutlinedButton
+import androidx.tv.material3.OutlinedButtonDefaults
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -102,7 +103,10 @@ fun HomeScreen(
     val focusedItem = app.focusedKey?.let { key ->
         shelves.firstOrNull { it.id == key.substringBefore(':') }?.items(yearOf)?.firstOrNull { it.key == key.substringAfter(':') }
     }
-    val focusedFilm = focusedItem?.cover?.let { app.films[it.jwId] }
+    // With nothing focused yet (or focus up in the header), preview the first box on the first shelf
+    // rather than leaving the space above the shelf empty.
+    val previewItem = focusedItem ?: shelves.firstOrNull()?.displayItems(app.shuffleSeed, yearOf)?.firstOrNull()
+    val focusedFilm = previewItem?.cover?.let { app.films[it.jwId] }
     val focusKey = app.focusedKey?.takeIf { focusedItem != null }
     var menuFor by remember { mutableStateOf<Pair<Shelf, ShelfItem>?>(null) }
     var copying by remember { mutableStateOf<ShelfFilm?>(null) }
@@ -179,7 +183,7 @@ fun HomeScreen(
                 return@Column
             }
             // Fixed height so the shelf below stays put whatever the blurb length.
-            Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp).height(152.dp))
+            Preview(focusedFilm, previewItem as? SetItem, Modifier.padding(horizontal = 48.dp).height(152.dp))
             if (shelves.isEmpty()) {
                 Text(
                     when {
@@ -577,7 +581,12 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
  */
 @Composable
 private fun ModeToggle(series: Boolean, onToggle: () -> Unit) {
-    OutlinedButton(onClick = onToggle, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+    // No outline at rest; it still shows the usual focus highlight.
+    OutlinedButton(
+        onClick = onToggle,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+        border = OutlinedButtonDefaults.border(border = Border.None),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             ModeLabel("Films", on = !series)
             ModeLabel("Series", on = series)
