@@ -32,6 +32,7 @@
           padding: 3px 10px; border-radius: 5px; }
   .logo + b { font-weight: 900; }
   #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  #modeSeg[hidden] { display: none; }
   h2 { font-size: 13px; letter-spacing: 2px; color: var(--yellow); margin: 22px 0 8px; }
   input[type=search], input[type=email], input[type=password] {
     width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 10px;
@@ -197,7 +198,8 @@
 </style>
 </head>
 <body>
-<header><span class="logo">BLOCKBUSTER</span><b>TV</b><span id="status"></span></header>
+<header><span class="logo">BLOCKBUSTER</span><b>TV</b><span id="status"></span>
+  <div class="seg" id="modeSeg" hidden><button id="modeFilms">Films</button><button id="modeSeries">Series</button></div></header>
 
 <!-- Signed out -->
 <section id="loginView" hidden>
@@ -214,7 +216,7 @@
 <section id="mainView" hidden>
   <div id="pairCard"></div>
 
-  <h2>ADD A FILM</h2>
+  <h2 id="addHeading">ADD A FILM</h2>
   <div class="search-row">
     <div class="search-field">
       <input type="search" id="q" placeholder="Film, actor or director" autocomplete="off" autocorrect="off" enterkeyhint="search">
@@ -252,7 +254,7 @@
 <script>
 const TOKEN = "bbtv_token";
 let token = localStorage.getItem(TOKEN) || "";
-let library = { shelves: [], owned: [] };
+let library = { shelves: [], series: [], owned: [] };
 let results = [];
 let busy = false;
 
@@ -296,6 +298,7 @@ function signedOut() {
   token = "";
   localStorage.removeItem(TOKEN);
   $("mainView").hidden = true;
+  $("modeSeg").hidden = true;
   $("loginView").hidden = false;
   $("status").textContent = "";
 }
@@ -318,9 +321,10 @@ $("signOut").onclick = (e) => { e.preventDefault(); signedOut(); };
 async function start(user) {
   // A reload while a film page was open: start from the shelves.
   if (location.hash.startsWith("#film=")) history.replaceState(null, "", "/");
-  renderFilters();
+  renderMode();
   $("loginView").hidden = true;
   $("mainView").hidden = false;
+  $("modeSeg").hidden = false;
   $("who").textContent = "Signed in as " + user.email;
   await Promise.all([load(), loadTvs(), showPairing()]);
 }
@@ -381,6 +385,40 @@ function setView(next, scrollToShelf) {
 $("viewShelves").onclick = () => setView("shelves");
 $("viewOverview").onclick = () => setView("overview");
 
+// Films or series: each has its own shelves and search, and films are the default.
+let mode = localStorage.getItem("bbtv_mode") === "series" ? "series" : "films";
+const isSeries = () => mode === "series";
+/** The shelves for the current mode: film shelves, or series shelves. */
+const myShelves = () => (isSeries() ? library.series : library.shelves) || [];
+/** "film"/"films" or "series"/"series", for labels. */
+const noun = (n) => isSeries() ? "series" : (n === 1 ? "film" : "films");
+const count = (n) => `${n} ${noun(n)}`;
+
+function setMode(next) {
+  if (next === mode) return;
+  mode = next;
+  localStorage.setItem("bbtv_mode", mode);
+  selecting = null;
+  openSet = null;
+  results = [];
+  $("people").replaceChildren();
+  // Reality TV is a series-only genre.
+  filters.genres = filters.genres.filter((g) => isSeries() || g !== "rly");
+  renderMode();
+  render();
+  search();
+}
+$("modeFilms").onclick = () => setMode("films");
+$("modeSeries").onclick = () => setMode("series");
+
+function renderMode() {
+  $("modeFilms").classList.toggle("on", !isSeries());
+  $("modeSeries").classList.toggle("on", isSeries());
+  $("addHeading").textContent = isSeries() ? "ADD A SERIES" : "ADD A FILM";
+  $("q").placeholder = isSeries() ? "Series or actor" : "Film, actor or director";
+  renderFilters();
+}
+
 /** Zoomed out: each shelf as a tile of its first four posters. Tap one to open it. */
 function renderOverview() {
   const shelves = shuffledShelves();
@@ -391,9 +429,9 @@ function renderOverview() {
         return el("button", { className: "tile", onclick: () => setView("shelves", shelf.id) },
           el("div", { className: "mosaic" }, ...cells),
           el("div", { className: "tname", textContent: shelf.name }),
-          el("div", { className: "tcount", textContent: shelf.films.length === 1 ? "1 film" : `${shelf.films.length} films` }));
+          el("div", { className: "tcount", textContent: count(shelf.films.length) }));
       }))
-    : el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." }));
+    : el("div", { className: "empty", textContent: `No ${isSeries() ? "series" : "film"} shelves yet. Make one below, or search for a ${isSeries() ? "series" : "film"} to start.` }));
 }
 
 function render() {
@@ -407,7 +445,7 @@ function render() {
   // Redrawing would reset each shelf's sideways scroll (e.g. while ticking films for a set): keep it.
   const scroll = new Map([...document.querySelectorAll(".shelf")].map((node) => [node.id, [...node.querySelectorAll(".films")].map((row) => row.scrollLeft)]));
   $("shelves").replaceChildren(...(shelves.length ? shelves.map((shelf) => renderShelf(shelf))
-    : [el("div", { className: "empty", textContent: "No shelves yet. Make one below, or search for a film to start." })]));
+    : [el("div", { className: "empty", textContent: `No ${isSeries() ? "series" : "film"} shelves yet. Make one below, or search for a ${isSeries() ? "series" : "film"} to start.` })]));
   for (const [id, lefts] of scroll) {
     const rows = document.getElementById(id)?.querySelectorAll(".films") || [];
     rows.forEach((row, i) => { row.scrollLeft = lefts[i] || 0; });
@@ -430,8 +468,8 @@ function rank(key) {
 
 // Pinned shelves come first, in their saved order (newest pin on top), then the shuffled rest.
 const shuffledShelves = () => [
-  ...library.shelves.filter((s) => s.pinned),
-  ...library.shelves.filter((s) => !s.pinned).sort((a, b) => rank(a.id) - rank(b.id)),
+  ...myShelves().filter((s) => s.pinned),
+  ...myShelves().filter((s) => !s.pinned).sort((a, b) => rank(a.id) - rank(b.id)),
 ];
 
 /** A shelf's items in this session's random order. */
@@ -497,7 +535,7 @@ function renderShelf(shelf) {
   const parts = [head];
   parts.push(items.length
     ? el("div", { className: "films" }, ...items.map(tile))
-    : el("div", { className: "empty", textContent: "Empty shelf: search above to add films." }));
+    : el("div", { className: "empty", textContent: `Empty shelf: search above to add ${noun()}.` }));
 
   // Choosing films for a set.
   if (picking) {
@@ -546,7 +584,7 @@ function renderShelf(shelf) {
 
 // --- Search and add ---------------------------------------------------------
 
-const shelvesWith = (film) => library.shelves.filter((s) => s.films.some((f) => f.jwId === film.jwId));
+const shelvesWith = (film) => myShelves().filter((s) => s.films.some((f) => f.jwId === film.jwId));
 
 function renderResults() {
   $("results").replaceChildren(...results.map((film) => {
@@ -595,7 +633,7 @@ const toggleIn = (list, value) => list.includes(value) ? list.filter((v) => v !=
 function renderFilters() {
   $("filtersBtn").textContent = filterCount() ? `Filters (${filterCount()})` : "Filters";
   $("filters").replaceChildren(
-    ...chipGroup("GENRE", GENRES, (v) => filters.genres.includes(v), (v) => { filters.genres = toggleIn(filters.genres, v); }),
+    ...chipGroup("GENRE", isSeries() ? [...GENRES, ["rly", "Reality TV"]] : GENRES, (v) => filters.genres.includes(v), (v) => { filters.genres = toggleIn(filters.genres, v); }),
     ...chipGroup("DECADE", DECADES, (v) => filters.decade === v, (v) => { filters.decade = v; }),
     ...chipGroup("IMDB RATING", RATINGS, (v) => filters.minRating === v, (v) => { filters.minRating = v; }),
     ...chipGroup("STREAMING ON", SERVICES, (v) => filters.services.includes(v), (v) => { filters.services = toggleIn(filters.services, v); }),
@@ -664,6 +702,7 @@ async function search() {
   if (filters.minRating) params.set("minRating", filters.minRating);
   if (filters.services.length) params.set("services", filters.services.join(","));
   if (filters.sort !== "popular") params.set("sort", filters.sort);
+  if (isSeries()) params.set("type", "series");
   const browsing = filters.person || filterCount() > 0;
   if (!q && !browsing) { results = []; renderResults(); $("people").replaceChildren(); return; }
   try {
@@ -692,7 +731,7 @@ async function search() {
         filtersChanged();
       },
     })));
-    if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: "No films found." }));
+    if (!found.length) $("results").replaceChildren(el("div", { className: "empty", textContent: `No ${noun()} found.` }));
   } catch (err) { showError(err); }
 }
 
@@ -702,7 +741,7 @@ function openSheet(film) {
   const added = (shelf) => { toast(`Added ${film.title} to ${shelf.name}`); close(); };
   const removed = (shelf) => { toast(`Removed ${film.title} from ${shelf.name}`); draw(); };
   const draw = () => {
-    const choices = library.shelves.map((shelf) => {
+    const choices = myShelves().map((shelf) => {
       const on = shelf.films.some((f) => f.jwId === film.jwId);
       return el("button", {
         className: on ? "ghost on" : "",
@@ -715,8 +754,8 @@ function openSheet(film) {
     const newShelf = el("button", { className: "ghost", onclick: async () => {
       const name = prompt("New shelf name");
       if (!name || !name.trim()) return;
-      const id = await op({ op: "addShelf", name });
-      if (id && await op({ op: "addFilm", shelf: id, film })) added(library.shelves.find((s) => s.id === id));
+      const id = await op({ op: "addShelf", name, kind: mode });
+      if (id && await op({ op: "addFilm", shelf: id, film })) added(myShelves().find((s) => s.id === id));
     } }, el("span", { textContent: "+ New shelf…" }), el("span"));
     $("sheet").replaceChildren(
       el("div", { className: "scrim", onclick: close }),
@@ -746,7 +785,7 @@ function openShelfMenu(shelf) {
           const name = prompt("Shelf name", shelf.name);
           if (name && name.trim()) op({ op: "renameShelf", shelf: shelf.id, name });
         }),
-        item("Make a set", () => { selecting = { shelf: shelf.id, chosen: new Set() }; render(); }, shelf.films.length < 1),
+        ...(isSeries() ? [] : [item("Make a set", () => { selecting = { shelf: shelf.id, chosen: new Set() }; render(); }, shelf.films.length < 1)]),
         item("Delete shelf", () => {
           if (confirm(`Delete the shelf "${shelf.name}"?`)) op({ op: "deleteShelf", shelf: shelf.id });
         }),
@@ -757,7 +796,7 @@ function openShelfMenu(shelf) {
 
 $("newShelf").onclick = () => {
   const name = prompt("New shelf name");
-  if (name && name.trim()) op({ op: "addShelf", name });
+  if (name && name.trim()) op({ op: "addShelf", name, kind: mode });
 };
 
 // --- TVs --------------------------------------------------------------------
@@ -863,8 +902,11 @@ function renderFilm(film, details) {
   currentFilm = { film, details };
   const owned = library.owned.includes(film.jwId);
   const shelves = shelvesWith(film);
+  const series = String(film.jwId).startsWith("ts");
   const meta = details ? [
-    film.year, film.runtime && minutes(film.runtime), film.ageCertification,
+    film.year,
+    series ? film.seasonCount && (film.seasonCount === 1 ? "1 season" : `${film.seasonCount} seasons`) : film.runtime && minutes(film.runtime),
+    film.ageCertification,
     film.rating && `IMDb ${film.rating.toFixed(1)}/10` + (film.votes ? ` (${Math.round(film.votes / 1000)}k votes)` : ""),
   ].filter(Boolean).join("  ·  ") : (film.year || "");
   const searchPerson = (person) => {
@@ -880,7 +922,11 @@ function renderFilm(film, details) {
     o.icon ? el("img", { src: o.icon, alt: "" }) : el("div"),
     el("div", { className: "grow" },
       el("div", { style: "font-weight:700", textContent: o.provider }),
-      el("div", { className: "what", textContent: o.kind === "watch" ? (o.free ? "Free" : "With a subscription") : `${o.kind === "rent" ? "Rent" : "Buy"} ${o.price || ""}` })),
+      el("div", { className: "what", textContent: [
+        o.kind === "watch" ? (o.free ? "Free" : "With a subscription") : `${o.kind === "rent" ? "Rent" : "Buy"} ${o.price || ""}`,
+        // A series' service that has only some seasons, e.g. "Season 1".
+        o.seasons && `${o.seasons} only`,
+      ].filter(Boolean).join(" · ") })),
     o.url ? el("span", { className: "go", textContent: "Open ›" }) : "");
 
   const offers = details ? details.offers : [];
@@ -900,14 +946,14 @@ function renderFilm(film, details) {
       el("div", { className: "fv-actions" },
         el("button", { textContent: shelves.length ? "+ Add to another shelf" : "+ Add to a shelf", onclick: () => openSheet(film) }),
         el("a", { className: "btn", href: youtube(title + " trailer"), target: "_blank", rel: "noopener", textContent: "▶ Trailer" }),
-        el("button", { className: "chip toggle" + (owned ? " on" : ""), textContent: owned ? "✓ Owned on YouTube" : "Owned on YouTube?",
-          onclick: () => op({ op: "setOwned", jwId: film.jwId, owned: !owned }) })),
+        ...(series ? [] : [el("button", { className: "chip toggle" + (owned ? " on" : ""), textContent: owned ? "✓ Owned on YouTube" : "Owned on YouTube?",
+          onclick: () => op({ op: "setOwned", jwId: film.jwId, owned: !owned }) })])),
       shelves.length ? el("div", { className: "muted fv-onshelves", textContent: "On your shelves: " + shelves.map((x) => x.name).join(", ") }) : "",
       details ? el("div", { className: "fv-synopsis", textContent: film.synopsis || "No synopsis available." }) : el("div", { className: "muted fv-synopsis", textContent: "Loading…" }),
       ...(details ? [
         el("h2", { textContent: "WHERE TO WATCH" }),
         el("div", { className: "card" },
-          ...(watch.length ? watch.map(offerRow) : [el("div", { className: "muted", textContent: "Not included with any streaming service in the UK right now." })])),
+          ...(watch.length ? watch.map(offerRow) : [el("div", { className: "muted", textContent: `Not included with any streaming service in the UK right now.` })])),
         el("details", { className: "fold", open: storeOpenFor === film.jwId, ontoggle: (e) => { storeOpenFor = e.target.open ? film.jwId : null; } },
           el("summary", {}, el("h2", { textContent: "RENT OR BUY" }), el("span", { className: "muted", textContent: storeSummary(store) })),
           el("div", { className: "card" }, ...store.map(offerRow),
@@ -920,7 +966,7 @@ function renderFilm(film, details) {
         ] : []),
         ...(film.directors.length ? [el("h2", { textContent: film.directors.length > 1 ? "DIRECTORS" : "DIRECTOR" }), el("div", { className: "people" }, ...film.directors.map(personTile))] : []),
         ...(film.cast.length ? [el("h2", { textContent: "CAST" }), el("div", { className: "people" }, ...film.cast.map(personTile))] : []),
-        el("div", { className: "muted", style: "margin-top:16px", textContent: "Tap a name to see their other films. Data from JustWatch, reviews on IMDb." }),
+        el("div", { className: "muted", style: "margin-top:16px", textContent: `Tap a name to see their other ${noun()}. Data from JustWatch, reviews on IMDb.` }),
       ] : []),
     ));
 }

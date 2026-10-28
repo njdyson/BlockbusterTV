@@ -56,7 +56,8 @@ import com.njdyson.blockbustertv.data.ShelfFilm
  */
 @Composable
 fun ShortlistScreen(app: AppState, onOpen: (Film) -> Unit) {
-    val films = app.shortlist
+    // Films and series are shortlisted separately: this shows the current mode's.
+    val films = app.currentShortlist
     val owned by app.shelfStore.owned.collectAsState()
     var focused by remember { mutableStateOf<String?>(null) }
     var menuFor by remember { mutableStateOf<ShelfFilm?>(null) }
@@ -89,7 +90,10 @@ fun ShortlistScreen(app: AppState, onOpen: (Film) -> Unit) {
                 return@Column
             }
             Text(
-                if (films.size == 1) "1 film" else "${films.size} films · side by side",
+                when {
+                    films.size == 1 -> "1 ${if (app.seriesMode) "series" else "film"}"
+                    else -> "${films.size} ${app.noun} · side by side"
+                },
                 color = TicketYellow,
                 fontSize = 15.sp,
             )
@@ -135,7 +139,7 @@ fun ShortlistScreen(app: AppState, onOpen: (Film) -> Unit) {
     if (confirmingClear) {
         ChoiceDialog(
             "Clear the shortlist?",
-            listOf((if (films.size == 1) "Clear 1 film" else "Clear all ${films.size} films") to { app.clearShortlist() }),
+            listOf((if (films.size == 1) "Clear 1 ${if (app.seriesMode) "series" else "film"}" else "Clear all ${films.size} ${app.noun}") to { app.clearShortlist() }),
             onDismiss = { confirmingClear = false },
         )
     }
@@ -200,7 +204,7 @@ private fun ShortlistCard(
             Text(entry.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val facts = listOfNotNull(
                 (film?.year ?: entry.year)?.toString(),
-                film?.runtimeMinutes?.let { if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m" },
+                film?.lengthLabel(),
                 film?.ageCertification,
             ).joinToString("  ·  ")
             if (facts.isNotEmpty()) Text(facts, fontSize = 12.sp, color = TicketYellow)

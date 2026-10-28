@@ -43,7 +43,7 @@ class JustWatch(private val services: Services) {
     suspend fun search(f: SearchFilters): List<ShelfFilm> = withContext(Dispatchers.IO) {
         if (f.isEmpty) return@withContext emptyList()
         val filter = buildJsonObject {
-            put("objectTypes", JsonArray(listOf(JsonPrimitive("MOVIE"))))
+            put("objectTypes", JsonArray(listOf(JsonPrimitive(if (f.series) "SHOW" else "MOVIE"))))
             f.text.trim().takeIf { it.isNotEmpty() }?.let { put("searchQuery", it) }
             f.person?.let { put("personId", it.id) }
             f.genre?.let { put("genres", JsonArray(listOf(JsonPrimitive(it)))) }
@@ -56,7 +56,7 @@ class JustWatch(private val services: Services) {
         }
         val query = """query(${'$'}filter: TitleFilter!, ${'$'}sort: PopularTitlesSorting!) {
             popularTitles(country: GB, first: 24, sortBy: ${'$'}sort, filter: ${'$'}filter) {
-              edges { node { id ... on Movie { content(country: GB, language: "en") {
+              edges { node { id ... on ${if (f.series) "Show" else "Movie"} { content(country: GB, language: "en") {
                 title originalReleaseYear posterUrl externalIds { imdbId } } } } } } }"""
         val variables = buildJsonObject { put("filter", filter); put("sort", f.sort.code) }
         post(query, variables).obj("popularTitles")?.get("edges")?.jsonArray.orEmpty().mapNotNull { edge ->
@@ -87,6 +87,17 @@ class JustWatch(private val services: Services) {
     private fun parseFilm(node: JsonObject): Film {
         val c = node.obj("content")!!
         val offers = node["offers"]?.jsonArray.orEmpty().mapNotNull { parseOffer(it.jsonObject) }
+        // A series' seasons (specials, season 0, aside) with their offers, to say which seasons each offer has.
+        val seasons = (node["seasons"] as? JsonArray).orEmpty().mapNotNull { season ->
+            val number = season.jsonObject.obj("content")?.get("seasonNumber")?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+            if (number < 1) return@mapNotNull null
+            number to season.jsonObject["offers"]?.jsonArray.orEmpty().mapNotNull { parseOffer(it.jsonObject) }
+        }
+        fun withSeasons(offer: Offer): Offer {
+            if (seasons.size < 2) return offer
+            val have = seasons.filter { (_, seasonOffers) -> seasonOffers.any { it.sameKindAs(offer) } }.map { it.first }.sorted()
+            return if (have.isNotEmpty() && have.size < seasons.size) offer.copy(seasons = seasonsLabel(have)) else offer
+        }
         return Film(
             jwId = node.str("id")!!,
             imdbId = c.obj("externalIds")?.str("imdbId").orEmpty(),
@@ -101,7 +112,8 @@ class JustWatch(private val services: Services) {
             poster = image(c.str("posterUrl"), "s332"),
             posterLarge = image(c.str("posterUrl"), "s592"),
             backdrop = image((c["backdrops"] as? JsonArray)?.firstOrNull()?.jsonObject?.str("backdropUrl"), "s1440"),
-            offers = dedupe(offers),
+            offers = dedupe(offers).map(::withSeasons),
+            seasonCount = node["totalSeasonCount"]?.jsonPrimitive?.intOrNull,
         )
     }
 
@@ -126,9 +138,14 @@ class JustWatch(private val services: Services) {
         )
     }
 
+    /** The same way to watch: kind, service, and channel (for channels like "HBO Max Amazon Channel"). */
+    private fun Offer.sameKindAs(other: Offer) = offerKey(this) == offerKey(other)
+
+    private fun offerKey(offer: Offer) = Triple(offer.kind, offer.serviceId, if (offer.isChannel) offer.providerName else "")
+
     /** JustWatch lists each quality (SD/HD/4K) separately; keep one per service, kind and channel. */
     private fun dedupe(offers: List<Offer>): List<Offer> =
-        offers.groupBy { Triple(it.kind, it.serviceId, if (it.isChannel) it.providerName else "") }
+        offers.groupBy(::offerKey)
             .values
             .map { group -> group.sortedWith(compareBy({ it.fireTvLink == null }, { it.priceValue ?: 0.0 })).first() }
             .sortedWith(compareBy({ it.kind }, { services.order(it.serviceId) }, { it.isChannel }))
@@ -157,24 +174,29 @@ class JustWatch(private val services: Services) {
             "iplayer" to "bbc", "itvx" to "itv", "channel4" to "al4", "now" to "ntv",
         )
 
-        private const val FIELDS = """id ... on Movie {
-            content(country: GB, language: "en") {
+        private const val OFFER_FIELDS = """monetizationType retailPrice(language: "en") retailPriceValue standardWebURL
+              fireTv: deeplinkURL(platform: FIRE_TV)
+              package { technicalName clearName icon }"""
+
+        private const val TITLE_FIELDS = """content(country: GB, language: "en") {
               title originalReleaseYear shortDescription runtime ageCertification
               genres { shortName } scoring { imdbScore } externalIds { imdbId tmdbId }
               posterUrl backdrops { backdropUrl }
             }
-            offers(country: GB, platform: WEB) {
-              monetizationType retailPrice(language: "en") retailPriceValue standardWebURL
-              fireTv: deeplinkURL(platform: FIRE_TV)
-              package { technicalName clearName icon }
-            }
-          }"""
+            offers(country: GB, platform: WEB) { $OFFER_FIELDS }"""
+
+        /** A film, or a series with its season count and each season's offers. */
+        private const val FIELDS = """id ... on Movie { $TITLE_FIELDS }
+          ... on Show { $TITLE_FIELDS totalSeasonCount seasons(sortDirection: ASC) {
+            content(country: GB, language: "en") { seasonNumber }
+            offers(country: GB, platform: WEB) { $OFFER_FIELDS } } }"""
 
         private val GENRES = mapOf(
             "act" to "Action", "ani" to "Animation", "cmy" to "Comedy", "crm" to "Crime",
             "doc" to "Documentary", "drm" to "Drama", "fnt" to "Fantasy", "fml" to "Family",
             "hst" to "History", "hrr" to "Horror", "msc" to "Music", "rma" to "Romance",
             "scf" to "Sci-Fi", "spt" to "Sport", "trl" to "Thriller", "war" to "War", "wsn" to "Western",
+            "rly" to "Reality TV",
         )
 
         /** JustWatch image paths are templates: /poster/123/{profile}/name.{format}. */

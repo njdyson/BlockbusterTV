@@ -28,6 +28,11 @@ Curated lists of movies from streaming sources, for Fire TV and Android TV.
 - **Film pages** (phone app): tap any poster for the synopsis, runtime, age rating,
   IMDb rating, genres, director and cast (tap a name for their films), where to watch
   and rent/buy prices with links, a trailer link, and the owned-on-YouTube switch.
+- **Series** (phone app and TV): the Films | Series switch in the header swaps to TV
+  series, with their own shelves, search and shortlist, kept apart from the films. Films
+  are the default. A series' page shows its number of seasons, and a service that has only
+  some seasons says which (e.g. "Season 1 only"). Box sets and owned-on-YouTube are for films only.
+  Editing from the TV's own phone page (unlinked TVs) is films only.
 - **Free to watch** (TV): the button on Home shows only films included on your services
   (subscription, free or with ads, from services.json) or owned on YouTube, hiding rent/buy-only
   and not-streaming films, and shelves left empty. Press it again (Show all films) to undo; the

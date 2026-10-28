@@ -50,13 +50,18 @@ private enum class Picker { GENRE, DECADE, RATING, SERVICE, SORT }
  */
 @Composable
 fun SearchScreen(app: AppState) {
-    val shelves by app.shelfStore.shelves.collectAsState()
-    var filters by remember { mutableStateOf(SearchFilters()) }
+    // Series mode searches series and adds them to the series shelves.
+    val series = app.seriesMode
+    val shelves by app.currentShelves.collectAsState()
+    var filters by remember { mutableStateOf(SearchFilters(series = series)) }
     var results by remember { mutableStateOf<List<ShelfFilm>>(emptyList()) }
     var people by remember { mutableStateOf<List<Person>>(emptyList()) }
-    var message by remember { mutableStateOf<String?>("Type a film, actor or director, or use the filters to browse.") }
+    var message by remember {
+        mutableStateOf<String?>(if (series) "Type a series or actor, or use the filters to browse." else "Type a film, actor or director, or use the filters to browse.")
+    }
     var picking by remember { mutableStateOf<ShelfFilm?>(null) }
     var picker by remember { mutableStateOf<Picker?>(null) }
+    val genres = if (series) SearchFilters.GENRES + SearchFilters.SERIES_GENRES else SearchFilters.GENRES
 
     // Search as you type (after a short pause), since the Fire TV keyboard may have no Search key.
     LaunchedEffect(filters) {
@@ -70,7 +75,7 @@ fun SearchScreen(app: AppState) {
         message = try {
             results = app.justWatch.search(filters)
             people = if (filters.person == null) app.justWatch.people(filters.text).filter { it.matches(filters.text) }.distinctBy { it.name }.take(3) else emptyList()
-            if (results.isEmpty() && people.isEmpty()) "No films found." else null
+            if (results.isEmpty() && people.isEmpty()) "No ${app.noun} found." else null
         } catch (e: Exception) {
             "Search failed: ${e.message}"
         }
@@ -82,11 +87,11 @@ fun SearchScreen(app: AppState) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Logo()
-            Text("Add a film", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(if (series) "Add a series" else "Add a film", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         Column(Modifier.fillMaxWidth(0.6f)) {
             TvTextField(
-                placeholder = "Film, actor or director",
+                placeholder = if (series) "Series or actor" else "Film, actor or director",
                 value = filters.text,
                 onValueChange = { filters = filters.copy(text = it) },
                 onSubmit = { filters = filters.copy(text = it) },
@@ -97,7 +102,7 @@ fun SearchScreen(app: AppState) {
             filters.person?.let { person ->
                 item { Button(onClick = { filters = filters.copy(person = null) }) { Text("With ${person.name}  ✕") } }
             }
-            item { FilterButton("Genre", SearchFilters.GENRES.firstOrNull { it.first == filters.genre }?.second) { picker = Picker.GENRE } }
+            item { FilterButton("Genre", genres.firstOrNull { it.first == filters.genre }?.second) { picker = Picker.GENRE } }
             item { FilterButton("Decade", filters.decade?.let { "${it % 100}s".padStart(3, '0') }) { picker = Picker.DECADE } }
             item { FilterButton("IMDb", filters.minRating?.let { "${it.toInt()}+" }) { picker = Picker.RATING } }
             item { FilterButton("On", filters.service?.let { app.services.byId(it)?.name }) { picker = Picker.SERVICE } }
@@ -139,7 +144,7 @@ fun SearchScreen(app: AppState) {
         Picker.GENRE -> ChoiceDialog(
             "Genre",
             listOf("Any genre" to { filters = filters.copy(genre = null) }) +
-                SearchFilters.GENRES.map { (code, name) -> name to { filters = filters.copy(genre = code) } },
+                genres.map { (code, name) -> name to { filters = filters.copy(genre = code) } },
             onDismiss = { picker = null },
         )
         Picker.DECADE -> ChoiceDialog(
@@ -172,7 +177,7 @@ fun SearchScreen(app: AppState) {
         ShelfPicker(
             shelves,
             onPick = { shelfId, newName ->
-                val id = shelfId ?: app.shelfStore.addShelf(newName.orEmpty())
+                val id = shelfId ?: app.shelfStore.addShelf(newName.orEmpty(), series)
                 app.addToShelf(id, film)
                 picking = null
             },

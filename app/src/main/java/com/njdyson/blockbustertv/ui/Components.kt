@@ -171,10 +171,15 @@ fun ServiceIcons(offers: List<Offer>, size: Dp = 20.dp, max: Int = 4) {
 
 fun Film.metaLine(): String = listOfNotNull(
     year?.toString(),
-    runtimeMinutes?.let { if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m" },
+    lengthLabel(),
     ageCertification,
     imdbScore?.let { String.format(Locale.UK, "IMDb %.1f/10", it) },
 ).joinToString("  ·  ")
+
+/** A film's running time ("2h 28m"), or a series' number of seasons ("6 seasons"). */
+fun Film.lengthLabel(): String? =
+    if (isSeries) seasonCount?.let { if (it == 1) "1 season" else "$it seasons" }
+    else runtimeMinutes?.let { if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m" }
 
 /** The yellow "on the shortlist" tag in the corner of a box. */
 @Composable

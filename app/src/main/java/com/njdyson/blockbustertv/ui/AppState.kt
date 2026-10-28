@@ -21,6 +21,8 @@ import com.njdyson.blockbustertv.data.Services
 import com.njdyson.blockbustertv.data.Shelf
 import com.njdyson.blockbustertv.data.ShelfFilm
 import com.njdyson.blockbustertv.data.ShelfStore
+import com.njdyson.blockbustertv.data.isSeriesId
+import kotlinx.coroutines.flow.StateFlow
 import com.njdyson.blockbustertv.server.EditServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +92,25 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         uiPrefs.edit().putBoolean("overview", show).apply()
     }
 
+    /**
+     * Showing series instead of films: Home, Add and the shortlist then use the series
+     * shelves, which are kept apart from the film shelves. Films are the default. Remembered between launches.
+     */
+    var seriesMode by mutableStateOf(uiPrefs.getBoolean("seriesMode", false))
+        private set
+
+    fun showSeries(show: Boolean) {
+        seriesMode = show
+        focusedKey = null
+        uiPrefs.edit().putBoolean("seriesMode", show).apply()
+    }
+
+    /** The shelves for the current mode: series shelves or film shelves. */
+    val currentShelves: StateFlow<List<Shelf>> get() = if (seriesMode) shelfStore.series else shelfStore.shelves
+
+    /** "films" or "series", for labels. */
+    val noun: String get() = if (seriesMode) "series" else "films"
+
     /** Home shows only films that are free to watch (see [isFreeToWatch]). Remembered between launches. */
     var freeOnly by mutableStateOf(uiPrefs.getBoolean("freeOnly", false))
         private set
@@ -118,6 +139,9 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
 
     fun isShortlisted(jwId: String): Boolean = shortlist.any { it.jwId == jwId }
 
+    /** The shortlisted films, or the shortlisted series in series mode. */
+    val currentShortlist: List<ShelfFilm> get() = shortlist.filter { isSeriesId(it.jwId) == seriesMode }
+
     /** Adds the film to the shortlist, or takes it off if it's already there. */
     fun toggleShortlist(film: ShelfFilm) {
         if (isShortlisted(film.jwId)) {
@@ -125,13 +149,14 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
             toast("Took ${film.title} off the shortlist", Toast.LENGTH_SHORT)
         } else {
             saveShortlist(shortlist + film)
-            toast("Added ${film.title} to the shortlist (${shortlist.size})", Toast.LENGTH_SHORT)
+            toast("Added ${film.title} to the shortlist (${shortlist.count { isSeriesId(it.jwId) == isSeriesId(film.jwId) }})", Toast.LENGTH_SHORT)
         }
     }
 
     fun removeFromShortlist(jwId: String) = saveShortlist(shortlist.filterNot { it.jwId == jwId })
 
-    fun clearShortlist() = saveShortlist(emptyList())
+    /** Clears the shortlist for the current mode (films or series), keeping the other. */
+    fun clearShortlist() = saveShortlist(shortlist - currentShortlist.toSet())
 
     private fun saveShortlist(films: List<ShelfFilm>) {
         shortlist = films
@@ -200,13 +225,13 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
 
     private fun toast(message: String, length: Int = Toast.LENGTH_LONG) = Toast.makeText(context, message, length).show()
 
-    // Shortlisted films stay loaded even if they're later taken off every shelf.
-    private fun allIds(shelves: List<Shelf> = shelfStore.shelves.value) =
+    // Film and series shelves both. Shortlisted films stay loaded even if they're later taken off every shelf.
+    private fun allIds(shelves: List<Shelf> = shelfStore.shelves.value + shelfStore.series.value) =
         (shelves.flatMap { s -> s.films.map { it.jwId } } + shortlist.map { it.jwId }).distinct()
 
     fun load() = scope.launch {
         films = repository.cached()
-        if (films.isEmpty() || repository.isStale()) refresh() else fetchMissing(shelfStore.shelves.value)
+        if (films.isEmpty() || repository.isStale()) refresh() else fetchMissing(shelfStore.shelves.value + shelfStore.series.value)
     }
 
     fun refresh() = scope.launch {
@@ -219,7 +244,7 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         }
     }
 
-    /** Called whenever the shelves change, e.g. from the phone: fetches data for new films. */
+    /** Called whenever the shelves change, e.g. from the phone: fetches data for new films. Pass film and series shelves. */
     fun fetchMissing(shelves: List<Shelf>) = scope.launch {
         if (allIds(shelves).all { it in films }) return@launch
         runCatching { films = repository.addMissing(allIds(shelves)) }
@@ -227,7 +252,7 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
 
     fun addToShelf(shelfId: String, film: ShelfFilm) {
         shelfStore.addFilm(shelfId, film)
-        val shelf = shelfStore.shelves.value.firstOrNull { it.id == shelfId }?.name
+        val shelf = (shelfStore.shelves.value + shelfStore.series.value).firstOrNull { it.id == shelfId }?.name
         Toast.makeText(context, "Added ${film.title} to $shelf", Toast.LENGTH_SHORT).show()
     }
 }
