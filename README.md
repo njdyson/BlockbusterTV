@@ -61,6 +61,16 @@ YouTube's search for the film on your phone, where it can be bought or rented.
 Mark it as owned on the TV and its Watch button then opens the YouTube app, where
 purchases appear under Library. Owned films are saved with the shelves.
 
+**Your own Plex server:** Settings > Connect your Plex server shows a code to enter
+at plex.tv/link (or takes the server's address and an X-Plex-Token typed in). The
+TV then finds a server the account can see (its own, or a friend's shared one), reads
+the films in every film library on it,
+matches them by IMDb ID (title and year for films Plex couldn't identify), and shows
+a Plex icon on their boxes and a Plex button first under Watch now. They count as
+free to watch. The button opens the film's watch.plex.tv page in the Plex app; Link
+Lab has a "Plex (your server)" row of candidate links that might open the server's
+copy directly. The list is kept on the TV only and re-read every six hours.
+
 Trailers need a free TMDB API key: add it as the `TMDB_API_KEY` Actions secret
 (or in `secrets.properties` for local builds).
 

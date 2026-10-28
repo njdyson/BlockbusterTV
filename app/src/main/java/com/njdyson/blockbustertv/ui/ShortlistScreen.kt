@@ -48,6 +48,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.njdyson.blockbustertv.data.Film
 import com.njdyson.blockbustertv.data.FilmLauncher
+import com.njdyson.blockbustertv.data.Plex
 import com.njdyson.blockbustertv.data.ShelfFilm
 
 /**
@@ -107,6 +108,7 @@ fun ShortlistScreen(app: AppState, onOpen: (Film) -> Unit) {
                         film = app.films[film.jwId],
                         entry = film,
                         ownedOnYouTube = film.jwId in owned,
+                        onPlex = app.plexCopy(film) != null,
                         topRated = topRated != null && app.films[film.jwId]?.imdbScore == topRated,
                         modifier = if (i == 0) Modifier.focusRequester(firstCard) else Modifier,
                         onFocused = { focused = film.jwId },
@@ -151,6 +153,7 @@ private fun ShortlistCard(
     film: Film?,
     entry: ShelfFilm,
     ownedOnYouTube: Boolean,
+    onPlex: Boolean,
     topRated: Boolean,
     modifier: Modifier,
     onFocused: () -> Unit,
@@ -214,11 +217,14 @@ private fun ShortlistCard(
             Box(Modifier.height(22.dp)) {
                 when {
                     film == null -> Unit
-                    ownedOnYouTube || film.watchServices.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    onPlex || ownedOnYouTube || film.watchServices.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (onPlex) {
+                            AsyncImage(Plex.ICON, "On your Plex server", Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)))
+                        }
                         if (ownedOnYouTube) {
                             AsyncImage(FilmLauncher.YOUTUBE_ICON, "Owned on YouTube", Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)))
                         }
-                        ServiceIcons(film.watchServices, size = 22.dp, max = if (ownedOnYouTube) 5 else 6)
+                        ServiceIcons(film.watchServices.filterNot { onPlex && it.serviceId == "plex" }, size = 22.dp, max = 6 - listOf(onPlex, ownedOnYouTube).count { it })
                     }
                     film.cheapestRent != null -> Text("Rent ${film.cheapestRent?.price.orEmpty()}", fontSize = 12.sp, color = TicketYellow)
                     else -> Text("Not streaming", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))

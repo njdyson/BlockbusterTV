@@ -18,7 +18,9 @@
         android:banner="@drawable/banner"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/Theme.BlockbusterTV">
+        android:theme="@style/Theme.BlockbusterTV"
+        android:usesCleartextTraffic="true">
+        <!-- Cleartext: a Plex server on the home network often only answers on plain http://<NAS IP>:32400. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
