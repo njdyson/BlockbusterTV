@@ -1,5 +1,7 @@
 package com.njdyson.blockbustertv.update
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -7,7 +9,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
@@ -20,7 +25,7 @@ private sealed interface UpdateState {
     data object Idle : UpdateState
     data object Checking : UpdateState
     data class UpToDate(val checkedAt: String) : UpdateState
-    data class Available(val version: Int) : UpdateState
+    data class Available(val version: Int, val notes: List<String>) : UpdateState
     data class Downloading(val progress: Float) : UpdateState
     data class Failed(val message: String) : UpdateState
 }
@@ -28,6 +33,7 @@ private sealed interface UpdateState {
 /**
  * Checks GitHub quietly on launch and whenever the app comes back to the front. Pressing
  * it checks again, and if a newer build exists, downloads it and opens the installer.
+ * The Fire OS installer only shows its own boilerplate, so what's new is listed here.
  */
 @Composable
 fun UpdateButton(resumeCount: Int) {
@@ -39,7 +45,7 @@ fun UpdateButton(resumeCount: Int) {
         state = UpdateState.Checking
         val latest = Updater.latest()
         if (latest.versionCode > Updater.currentVersion) {
-            state = UpdateState.Available(latest.versionCode)
+            state = UpdateState.Available(latest.versionCode, latest.notes)
             latest.versionCode
         } else {
             state = UpdateState.UpToDate(SimpleDateFormat("HH:mm", Locale.UK).format(Date()))
@@ -77,9 +83,18 @@ fun UpdateButton(resumeCount: Int) {
         is UpdateState.Downloading -> "Downloading… ${(s.progress * 100).toInt()}%"
         is UpdateState.Failed -> "Update check failed: ${s.message.take(40)}"
     }
-    if (state is UpdateState.Available) {
-        Button(onClick = onClick) { Text(label) }
-    } else {
-        OutlinedButton(onClick = onClick) { Text(label) }
+    val available = state as? UpdateState.Available
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (available != null) {
+            Button(onClick = onClick) { Text(label) }
+            if (available.notes.isNotEmpty()) {
+                Text("What's new", color = Color.White, fontSize = 14.sp)
+                available.notes.take(5).forEach {
+                    Text("• $it", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                }
+            }
+        } else {
+            OutlinedButton(onClick = onClick) { Text(label) }
+        }
     }
 }
