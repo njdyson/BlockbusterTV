@@ -65,7 +65,6 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
 
     private val shelfStates = mutableMapOf<String, LazyListState>()
     fun shelfState(shelfId: String): LazyListState = shelfStates.getOrPut(shelfId) { LazyListState() }
-    val homeListState = LazyListState()
     var focusedKey by mutableStateOf<String?>(null)
 
     /**

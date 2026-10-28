@@ -15,6 +15,15 @@ object HeaderIcons {
     /** Four squares: the tile overview. */
     val Tiles = icon("Tiles", "M4,4h7v7H4z M13,4h7v7h-7z M4,13h7v7H4z M13,13h7v7h-7z")
 
+    /** Material "star": the shortlist. */
+    val Star = icon("Star", "M12,17.27L18.18,21l-1.64,-7.03L22,9.24l-7.19,-0.61L12,2 9.19,8.63 2,9.24l5.46,4.73L5.82,21z")
+
+    /** Material "add": Add film. */
+    val Add = icon("Add", "M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
+
+    /** Material "smartphone": Edit on phone. */
+    val Phone = icon("Phone", "M17,1.01L7,1c-1.1,0 -2,0.9 -2,2v18c0,1.1 0.9,2 2,2h10c1.1,0 2,-0.9 2,-2V3c0,-1.1 -0.9,-1.99 -2,-1.99z M17,19H7V5h10v14z")
+
     /** Material "expand less" and "expand more" chevrons, for the shelf hints. */
     val ChevronUp = icon("ChevronUp", "M12,8l-6,6 1.41,1.41L12,10.83l4.59,4.58L18,14z")
     val ChevronDown = icon("ChevronDown", "M16.59,8.59L12,13.17 7.41,8.59 6,10l6,6 6,-6z")
