@@ -15,9 +15,6 @@ object HeaderIcons {
     /** Four squares: the tile overview. */
     val Tiles = icon("Tiles", "M4,4h7v7H4z M13,4h7v7h-7z M4,13h7v7H4z M13,13h7v7h-7z")
 
-    /** Material "play circle": Free to watch. */
-    val Play = icon("Play", "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z M10,16.5v-9l6,4.5 -6,4.5z")
-
     /** Material "star": the shortlist. */
     val Star = icon("Star", "M12,17.27L18.18,21l-1.64,-7.03L22,9.24l-7.19,-0.61L12,2 9.19,8.63 2,9.24l5.46,4.73L5.82,21z")
 

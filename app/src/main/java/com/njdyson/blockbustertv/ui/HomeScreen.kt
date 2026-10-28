@@ -147,9 +147,10 @@ fun HomeScreen(
                 }
                 // Icons only; the focused one shows its name. Free to watch turns yellow while it's on.
                 HeaderIconButton(
-                    HeaderIcons.Play,
+                    null,
                     if (app.freeOnly) "Show all films" else "Free to watch",
                     active = app.freeOnly,
+                    glyph = "£",
                 ) { app.showFreeOnly(!app.freeOnly) }
                 HeaderIconButton(
                     HeaderIcons.Star,
@@ -553,13 +554,15 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
 /**
  * An icon header button. Its name appears beside the icon while it has focus;
  * [badge] (the shortlist count) shows all the time, and [active] tints the icon yellow.
+ * A [glyph] (a single character such as £) stands in for the icon.
  */
 @Composable
 private fun HeaderIconButton(
-    icon: ImageVector,
+    icon: ImageVector?,
     label: String,
     active: Boolean = false,
     badge: String? = null,
+    glyph: String? = null,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -569,12 +572,9 @@ private fun HeaderIconButton(
         modifier = Modifier.onFocusChanged { focused = it.isFocused },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = if (active && !focused) TicketYellow else LocalContentColor.current,
-                modifier = Modifier.size(20.dp),
-            )
+            val tint = if (active && !focused) TicketYellow else LocalContentColor.current
+            if (icon != null) Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
+            glyph?.let { Text(it, color = tint, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
             badge?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
             if (focused) Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
