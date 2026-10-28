@@ -30,4 +30,13 @@ class JustWatchSearchTest {
         assertTrue(films.isNotEmpty() && films.all { (it.year ?: 0) in 1980..1989 })
         assertTrue(justWatch.search(SearchFilters()).isEmpty())
     }
+
+    @Test
+    fun seriesSearchAndSeasons() = runBlocking {
+        assumeTrue(System.getenv("BBTV_TEST_JUSTWATCH") == "1")
+        val shows = justWatch.search(SearchFilters(text = "slow horses", series = true))
+        assertTrue(shows.toString(), shows.first().title == "Slow Horses" && shows.all { isSeriesId(it.jwId) })
+        val show = justWatch.films(listOf(shows.first().jwId)).single()
+        assertTrue(show.isSeries && (show.seasonCount ?: 0) >= 5 && show.watchOffers.isNotEmpty())
+    }
 }

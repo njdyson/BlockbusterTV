@@ -16,6 +16,8 @@ data class Offer(
     val priceValue: Double?,
     val fireTvLink: String?,
     val webUrl: String?,
+    /** For a series: which seasons this has when it isn't all of them, e.g. "Season 1" or "Seasons 1–3". */
+    val seasons: String? = null,
 ) {
     val isChannel: Boolean get() = providerName.contains("Channel", ignoreCase = true)
 }
@@ -36,13 +38,32 @@ data class Film(
     val posterLarge: String?,
     val backdrop: String?,
     val offers: List<Offer>,
+    /** For a series: how many seasons it has. */
+    val seasonCount: Int? = null,
 ) {
+    /** A TV series rather than a film. Series live on their own shelves. */
+    val isSeries: Boolean get() = isSeriesId(jwId)
+
     val watchOffers: List<Offer> get() = offers.filter { it.kind == OfferKind.WATCH }
 
     /** Services that include the film, for the icons on the box. */
     val watchServices: List<Offer> get() = watchOffers.distinctBy { it.serviceId }
 
     val cheapestRent: Offer? get() = offers.filter { it.kind == OfferKind.RENT }.minByOrNull { it.priceValue ?: Double.MAX_VALUE }
+}
+
+/** JustWatch IDs: films are "tm…", series "ts…". */
+fun isSeriesId(jwId: String): Boolean = jwId.startsWith("ts")
+
+/** "Season 1", "Seasons 1–3", "Seasons 1–2, 5" for a sorted list of season numbers. */
+fun seasonsLabel(numbers: List<Int>): String {
+    val ranges = mutableListOf<IntRange>()
+    for (n in numbers) {
+        val last = ranges.lastOrNull()
+        if (last != null && n == last.last + 1) ranges[ranges.lastIndex] = last.first..n else ranges += n..n
+    }
+    val text = ranges.joinToString(", ") { if (it.first == it.last) "${it.first}" else "${it.first}–${it.last}" }
+    return (if (numbers.size == 1) "Season " else "Seasons ") + text
 }
 
 @Serializable
@@ -71,6 +92,8 @@ data class SearchFilters(
     val minRating: Double? = null,
     val service: String? = null,
     val sort: SearchSort = SearchSort.POPULAR,
+    /** Search series instead of films. */
+    val series: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = text.isBlank() && person == null && genre == null && decade == null && minRating == null && service == null
@@ -83,6 +106,8 @@ data class SearchFilters(
             "fnt" to "Fantasy", "doc" to "Documentary", "war" to "War", "wsn" to "Western", "msc" to "Music",
             "hst" to "History", "spt" to "Sport",
         )
+        /** Genres only series have. */
+        val SERIES_GENRES = listOf("rly" to "Reality TV")
         val DECADES = (1950..2020 step 10).toList()
         val RATINGS = listOf(6.0, 7.0, 8.0)
     }

@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import com.njdyson.blockbustertv.linklab.LinkLabScreen
 import com.njdyson.blockbustertv.ui.AppState
 import com.njdyson.blockbustertv.ui.BlockbusterTheme
@@ -39,8 +40,9 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 app.load()
                 if (!app.linked) app.server.startSafely()
-                // Shelves can change from the phone at any time: fetch data for new films.
-                app.shelfStore.shelves.collect { app.fetchMissing(it) }
+                // Shelves can change from the phone at any time: fetch data for new films and series.
+                combine(app.shelfStore.shelves, app.shelfStore.series) { films, series -> films + series }
+                    .collect { app.fetchMissing(it) }
             }
             // Linked TVs pick up edits from the phone app and other TVs.
             LaunchedEffect(resumeCount.intValue) { app.sync() }

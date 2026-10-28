@@ -51,7 +51,7 @@ import com.njdyson.blockbustertv.data.Tmdb
 fun DetailScreen(app: AppState, film: Film) {
     var trailerId by remember(film.jwId) { mutableStateOf<String?>(null) }
     LaunchedEffect(film.tmdbId) {
-        trailerId = film.tmdbId?.let { runCatching { Tmdb.trailerId(it) }.getOrNull() }
+        trailerId = film.tmdbId?.let { runCatching { Tmdb.trailerId(it, series = film.isSeries) }.getOrNull() }
     }
 
     val watch = film.watchOffers
@@ -61,7 +61,8 @@ fun DetailScreen(app: AppState, film: Film) {
         .groupBy { it.serviceId }
     val firstButton = remember { FocusRequester() }
     val owned by app.shelfStore.owned.collectAsState()
-    val ownedOnYouTube = film.jwId in owned
+    // Owning on YouTube is for films; series don't offer it.
+    val ownedOnYouTube = !film.isSeries && film.jwId in owned
     var buying by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
@@ -118,7 +119,11 @@ fun DetailScreen(app: AppState, film: Film) {
                         ServiceButton(
                             app, offer,
                             label = app.services.byId(offer.serviceId)?.name ?: offer.providerName,
-                            note = if (offer.isChannel) offer.providerName else null,
+                            // A series' service with only some seasons says which, e.g. "Season 1 only".
+                            note = listOfNotNull(
+                                offer.providerName.takeIf { offer.isChannel },
+                                offer.seasons?.let { "$it only" },
+                            ).joinToString(" · ").ifEmpty { null },
                             primary = true,
                             modifier = Modifier.focusIf("watch", offer == watch.first()),
                         ) { app.launcher.watch(film, offer) }
@@ -129,8 +134,12 @@ fun DetailScreen(app: AppState, film: Film) {
                 SectionLabel("RENT OR BUY")
                 // YouTube's film store isn't in JustWatch's UK data, so it's always offered,
                 // as a hand-off to the phone (there's no way to buy through the TV app).
-                // null stands for the YouTube button, shown last.
-                val storeButtons: List<List<Offer>?> = stores.values.toList() + listOf(null)
+                // null stands for the YouTube button, shown last. Series don't get it: the
+                // owned-on-YouTube hand-off is for films.
+                val storeButtons: List<List<Offer>?> = stores.values.toList() + if (film.isSeries) emptyList() else listOf(null)
+                if (storeButtons.isEmpty()) {
+                    Text("Not available to rent or buy right now.", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                }
                 ButtonRow(storeButtons) { offers ->
                     if (offers == null) {
                         IconButton(
