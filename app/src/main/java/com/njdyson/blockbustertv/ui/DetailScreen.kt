@@ -1,5 +1,7 @@
 package com.njdyson.blockbustertv.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +30,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +41,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.njdyson.blockbustertv.TrailerActivity
 import com.njdyson.blockbustertv.data.Film
 import com.njdyson.blockbustertv.data.FilmLauncher
 import com.njdyson.blockbustertv.linklab.qrCode
@@ -64,9 +68,14 @@ fun DetailScreen(app: AppState, film: Film) {
     // Owning on YouTube is for films; series don't offer it.
     val ownedOnYouTube = !film.isSeries && film.jwId in owned
     var buying by remember { mutableStateOf(false) }
-    var playingTrailer by remember(film.jwId) { mutableStateOf<String?>(null) }
-    var trailersClosed by remember(film.jwId) { mutableStateOf(0) }
     val trailerButton = remember { FocusRequester() }
+    var trailersClosed by remember(film.jwId) { mutableStateOf(0) }
+    val trailerPlayer = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        trailersClosed++
+        // YouTube wouldn't play it embedded: hand it to the YouTube app.
+        if (result.resultCode == TrailerActivity.RESULT_FALLBACK) trailerId?.let { app.launcher.trailer(it) }
+    }
+    val context = LocalContext.current
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
         Backdrop(film.backdrop, alpha = 0.6f)
@@ -166,7 +175,7 @@ fun DetailScreen(app: AppState, film: Film) {
                 SectionLabel("EXTRAS")
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     trailerId?.let { id ->
-                        OutlinedButton(onClick = { playingTrailer = id }, modifier = Modifier.focusRequester(trailerButton)) {
+                        OutlinedButton(onClick = { trailerPlayer.launch(TrailerActivity.intent(context, id, film.title)) }, modifier = Modifier.focusRequester(trailerButton)) {
                             Text("▶  Play trailer")
                         }
                     }
@@ -179,10 +188,6 @@ fun DetailScreen(app: AppState, film: Film) {
     }
     LaunchedEffect(film.jwId, ownedOnYouTube) { firstButton.requestFocusWhenReady() }
 
-    playingTrailer?.let { id ->
-        fun stop() { playingTrailer = null; trailersClosed++ }
-        TrailerPlayer(id, film.title, onClose = ::stop, onFallback = { stop(); app.launcher.trailer(id) })
-    }
     // Back from a trailer: focus returns to its button.
     LaunchedEffect(trailersClosed) { if (trailersClosed > 0) trailerButton.requestFocusWhenReady() }
 
