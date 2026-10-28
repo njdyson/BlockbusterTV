@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -27,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import com.njdyson.blockbustertv.data.Shelf
 import com.njdyson.blockbustertv.data.ShelfFilm
@@ -111,24 +112,22 @@ fun HomeScreen(
     // Back in the overview returns to the shelves rather than leaving the app.
     BackHandler(enabled = app.overview) { app.showOverview(false) }
 
-    // After picking a shelf in the overview, scroll to it so its first box can take focus.
+    // After picking a shelf in the overview, start it from its first box.
     LaunchedEffect(pendingShelf, app.overview) {
         val id = pendingShelf ?: return@LaunchedEffect
         if (app.overview) return@LaunchedEffect
-        val index = shelves.indexOfFirst { it.id == id }
-        if (index >= 0) {
-            app.homeListState.scrollToItem(index)
-            app.shelfState(id).scrollToItem(0)
-        }
+        app.shelfState(id).scrollToItem(0)
         pendingShelf = null
     }
 
-    // One shelf fills the space under the preview: when focus moves to another shelf, snap it to the top.
-    val focusedShelf = app.focusedKey?.substringBefore(':')
-    LaunchedEffect(focusedShelf, app.overview) {
-        if (app.overview) return@LaunchedEffect
-        val index = shelves.indexOfFirst { it.id == focusedShelf }
-        if (index >= 0) app.homeListState.animateScrollToItem(index)
+    // Only one shelf is on screen: the one holding the focused box, or the first.
+    val shelfIndex = shelves.indexOfFirst { it.id == app.focusedKey?.substringBefore(':') }.coerceAtLeast(0)
+    // Up/Down swap in the neighbouring shelf, on the box at the start of its last scroll position.
+    fun moveToShelf(index: Int) {
+        val shelf = shelves[index]
+        val items = shelf.displayItems(app.shuffleSeed, yearOf)
+        val item = items.getOrNull(app.shelfState(shelf.id).firstVisibleItemIndex) ?: items.firstOrNull() ?: return
+        app.focusedKey = "${shelf.id}:${item.key}"
     }
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
@@ -187,16 +186,30 @@ fun HomeScreen(
                     modifier = Modifier.padding(48.dp),
                 )
             }
-            LazyColumn(
-                state = app.homeListState,
-                modifier = Modifier.weight(1f),
-            ) {
-                itemsIndexed(shelves, key = { _, shelf -> shelf.id }) { shelfIndex, shelf ->
-                    Column(Modifier.fillParentMaxHeight().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            shelves.getOrNull(shelfIndex)?.let { shelf ->
+                key(shelf.id) {
+                    Column(
+                        Modifier.weight(1f).padding(top = 16.dp).onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    if (shelfIndex < shelves.lastIndex) moveToShelf(shelfIndex + 1)
+                                    true
+                                }
+                                // On the first shelf, Up carries on to the header buttons.
+                                Key.DirectionUp -> if (shelfIndex > 0) { moveToShelf(shelfIndex - 1); true } else false
+                                else -> false
+                            }
+                        },
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             ShelfSign(shelf.name)
                             Spacer(Modifier.weight(1f))
-                            shelves.getOrNull(shelfIndex - 1)?.let { ShelfHint(HeaderIcons.ChevronUp, it.name, Modifier.padding(end = 48.dp)) }
+                            // Where Up and Down lead.
+                            shelves.getOrNull(shelfIndex - 1)?.let { ShelfHint(HeaderIcons.ChevronUp, it.name) }
+                            shelves.getOrNull(shelfIndex + 1)?.let { ShelfHint(HeaderIcons.ChevronDown, it.name, Modifier.padding(start = 20.dp)) }
+                            Spacer(Modifier.width(48.dp))
                         }
                         if (shelf.films.isEmpty()) {
                             Text(
@@ -206,17 +219,17 @@ fun HomeScreen(
                                 modifier = Modifier.padding(horizontal = 48.dp, vertical = 8.dp),
                             )
                         }
+                        // The vertical padding leaves room for a focused box to grow without touching the sign.
                         LazyRow(
                             state = app.shelfState(shelf.id),
-                            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 10.dp),
+                            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
                             val items = shelf.displayItems(app.shuffleSeed, yearOf)
                             itemsIndexed(items, key = { _, item -> item.key }) { i, item ->
                                 val key = "${shelf.id}:${item.key}"
                                 // Focus the first box on launch, or the last one used when coming Back.
-                                val wantsFocus = focusKey == key ||
-                                    (focusKey == null && shelfIndex == 0 && i == 0)
+                                val wantsFocus = focusKey == key || (focusKey == null && i == 0)
                                 when (item) {
                                     is FilmItem -> VhsBox(
                                         film = app.films[item.film.jwId],
@@ -242,11 +255,6 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                        }
-                        // Down leads to the next shelf.
-                        Spacer(Modifier.weight(1f))
-                        shelves.getOrNull(shelfIndex + 1)?.let {
-                            ShelfHint(HeaderIcons.ChevronDown, it.name, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 6.dp))
                         }
                     }
                 }
