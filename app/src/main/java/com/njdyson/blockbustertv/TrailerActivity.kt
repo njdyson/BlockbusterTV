@@ -69,8 +69,9 @@ class TrailerActivity : Activity(), TrailerWebView.Listener {
             addView(hint)
         }
 
+        // The WebView is opaque black already, so no window or layout background under it to draw every frame.
+        window.setBackgroundDrawable(null)
         setContentView(FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
             addView(webView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(hintBar, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM))
         })

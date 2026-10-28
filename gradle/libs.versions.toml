@@ -9,6 +9,7 @@ serialization = "1.7.3"
 zxing = "3.5.3"
 coil = "2.7.0"
 nanohttpd = "2.3.1"
+webkit = "1.12.1"
 junit = "4.13.2"
 
 [libraries]
@@ -23,6 +24,7 @@ androidx-tv-material = { group = "androidx.tv", name = "tv-material", version.re
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 nanohttpd = { group = "org.nanohttpd", name = "nanohttpd", version.ref = "nanohttpd" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
