@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,6 +43,7 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.njdyson.blockbustertv.TrailerActivity
+import com.njdyson.blockbustertv.TrailerWebView
 import com.njdyson.blockbustertv.data.Film
 import com.njdyson.blockbustertv.data.FilmLauncher
 import com.njdyson.blockbustertv.linklab.qrCode
@@ -49,6 +51,7 @@ import com.njdyson.blockbustertv.data.Offer
 import com.njdyson.blockbustertv.data.OfferKind
 import com.njdyson.blockbustertv.data.ShelfFilm
 import com.njdyson.blockbustertv.data.Tmdb
+import kotlinx.coroutines.delay
 
 /** The back of the box: synopsis and details, with a button for each way to watch. */
 @Composable
@@ -57,6 +60,14 @@ fun DetailScreen(app: AppState, film: Film) {
     LaunchedEffect(film.tmdbId) {
         trailerId = film.tmdbId?.let { runCatching { Tmdb.trailerId(it, series = film.isSeries) }.getOrNull() }
     }
+    // Buffer the trailer's opening seconds after a moment on the page, so it starts smoothly.
+    val context = LocalContext.current
+    LaunchedEffect(trailerId) {
+        val id = trailerId ?: return@LaunchedEffect
+        delay(1_500)
+        TrailerWebView.preload(context, id)
+    }
+    DisposableEffect(film.jwId) { onDispose { TrailerWebView.release() } }
 
     val watch = film.watchOffers
     // One rent/buy button per service, for services whose link opens the film's store page.
@@ -75,7 +86,6 @@ fun DetailScreen(app: AppState, film: Film) {
         // YouTube wouldn't play it embedded: hand it to the YouTube app.
         if (result.resultCode == TrailerActivity.RESULT_FALLBACK) trailerId?.let { app.launcher.trailer(it) }
     }
-    val context = LocalContext.current
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
         Backdrop(film.backdrop, alpha = 0.6f)
