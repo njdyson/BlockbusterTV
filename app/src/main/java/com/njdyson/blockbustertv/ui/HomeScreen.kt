@@ -52,13 +52,16 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.OutlinedButton
+import androidx.tv.material3.OutlinedIconButton
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
@@ -120,11 +123,19 @@ fun HomeScreen(
         pendingShelf = null
     }
 
+    // One shelf fills the space under the preview: when focus moves to another shelf, snap it to the top.
+    val focusedShelf = app.focusedKey?.substringBefore(':')
+    LaunchedEffect(focusedShelf, app.overview) {
+        if (app.overview) return@LaunchedEffect
+        val index = shelves.indexOfFirst { it.id == focusedShelf }
+        if (index >= 0) app.homeListState.animateScrollToItem(index)
+    }
+
     Box(Modifier.fillMaxSize().background(NightNavy)) {
         Backdrop(focusedFilm?.backdrop)
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 24.dp),
+                Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -135,11 +146,15 @@ fun HomeScreen(
                     app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
                 HeaderButton(if (app.freeOnly) "Show all films" else "Free to watch") { app.showFreeOnly(!app.freeOnly) }
-                HeaderButton(if (app.overview) "Shelves" else "Overview") { app.showOverview(!app.overview) }
                 HeaderButton(if (app.shortlist.isEmpty()) "Shortlist" else "Shortlist (${app.shortlist.size})", onShortlist)
                 HeaderButton("Add film", onSearch)
                 HeaderButton("Edit on phone", onPhoneEdit)
-                HeaderButton("Settings", onSettings)
+                // Shows the view the press switches to.
+                HeaderIconButton(
+                    if (app.overview) HeaderIcons.Shelves else HeaderIcons.Tiles,
+                    if (app.overview) "Shelves" else "Overview",
+                ) { app.showOverview(!app.overview) }
+                HeaderIconButton(HeaderIcons.Settings, "Settings", onSettings)
             }
             if (app.overview && shelves.isNotEmpty()) {
                 ShelfOverview(app, shelves, onPick = { shelf ->
@@ -150,7 +165,7 @@ fun HomeScreen(
                 })
                 return@Column
             }
-            Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp).height(128.dp))
+            Preview(focusedFilm, focusedItem as? SetItem, Modifier.padding(horizontal = 48.dp))
             if (shelves.isEmpty()) {
                 Text(
                     if (app.freeOnly && allShelves.isNotEmpty()) "Nothing on your shelves is free to watch right now. Choose Show all films to see everything."
@@ -162,11 +177,10 @@ fun HomeScreen(
             }
             LazyColumn(
                 state = app.homeListState,
-                contentPadding = PaddingValues(bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
             ) {
                 itemsIndexed(shelves, key = { _, shelf -> shelf.id }) { shelfIndex, shelf ->
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.fillParentMaxHeight().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ShelfSign(shelf.name)
                         if (shelf.films.isEmpty()) {
                             Text(
@@ -178,7 +192,7 @@ fun HomeScreen(
                         }
                         LazyRow(
                             state = app.shelfState(shelf.id),
-                            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
+                            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
                             val items = shelf.displayItems(app.shuffleSeed, yearOf)
@@ -215,16 +229,16 @@ fun HomeScreen(
                         }
                     }
                 }
-                item {
-                    Text(
-                        (if (app.freeOnly) "Showing films included on your services or owned on YouTube · " else "") +
-                            "Availability and ratings from JustWatch · Hold Select on a box to make sets or remove it · Press ⏯ on a box to shortlist it",
-                        color = Color.White.copy(alpha = 0.4f),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 48.dp),
-                    )
-                }
             }
+            Text(
+                (if (app.freeOnly) "Showing films included on your services or owned on YouTube · " else "") +
+                    "Availability and ratings from JustWatch · Hold Select on a box to make sets or remove it · Press ⏯ on a box to shortlist it",
+                color = Color.White.copy(alpha = 0.4f),
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 12.dp),
+            )
         }
     }
 
@@ -324,7 +338,7 @@ private class Naming(val title: String, val initial: String, val confirm: String
 
 @Composable
 private fun Preview(film: Film?, set: SetItem?, modifier: Modifier) {
-    Column(modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (set != null) {
             Text(set.set.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Box set · ${set.films.size} films", color = TicketYellow, fontSize = 15.sp)
@@ -338,9 +352,7 @@ private fun Preview(film: Film?, set: SetItem?, modifier: Modifier) {
             film.synopsis.orEmpty(),
             color = Color.White.copy(alpha = 0.85f),
             fontSize = 14.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(0.6f),
+            modifier = Modifier.fillMaxWidth(0.75f),
         )
     }
 }
@@ -348,9 +360,9 @@ private fun Preview(film: Film?, set: SetItem?, modifier: Modifier) {
 @Composable
 private fun ShelfSign(name: String) {
     Row(Modifier.padding(horizontal = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(width = 6.dp, height = 22.dp).background(TicketYellow))
-        Spacer(Modifier.width(10.dp))
-        Text(name.uppercase(), color = TicketYellow, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        Box(Modifier.size(width = 5.dp, height = 18.dp).background(TicketYellow))
+        Spacer(Modifier.width(8.dp))
+        Text(name.uppercase(), color = TicketYellow, fontSize = 15.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
     }
 }
 
@@ -521,5 +533,13 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
 private fun HeaderButton(label: String, onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
         Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
+    }
+}
+
+/** An icon-only header button, used where the meaning is clear without a label. */
+@Composable
+private fun HeaderIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    OutlinedIconButton(onClick = onClick) {
+        Icon(icon, contentDescription = description, modifier = Modifier.size(20.dp))
     }
 }
