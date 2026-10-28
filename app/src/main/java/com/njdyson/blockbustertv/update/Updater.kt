@@ -20,8 +20,9 @@ object Updater {
     private const val RELEASE = "https://github.com/njdyson/BlockbusterTV/releases/latest/download"
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** [notes] lists what changed in that build; older version.json files have none. */
     @Serializable
-    data class RemoteVersion(val versionCode: Int, val sha: String)
+    data class RemoteVersion(val versionCode: Int, val sha: String, val notes: List<String> = emptyList())
 
     val currentVersion: Int get() = BuildConfig.VERSION_CODE
     val currentSha: String get() = BuildConfig.GIT_SHA

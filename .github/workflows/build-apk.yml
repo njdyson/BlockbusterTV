@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Enough history to list the commits a merge brought in, for the update notes.
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -31,9 +34,13 @@ jobs:
           # Optional: enables trailers. Add it under Settings > Secrets and variables > Actions.
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: cp app/build/outputs/apk/debug/app-debug.apk BlockbusterTV.apk
-      # Read by the app's "Check for update" button.
+      # Read by the app's "Check for update" button. The notes are the commit subjects a
+      # merge brought in (or the one commit for a direct push), shown as "What's new".
       - run: |
-          echo "{\"versionCode\": ${GITHUB_RUN_NUMBER}, \"sha\": \"${GITHUB_SHA::7}\"}" > version.json
+          if git rev-parse -q --verify HEAD^2 >/dev/null; then range="HEAD^1..HEAD"; else range="-1 HEAD"; fi
+          git log --no-merges --format=%s $range | head -n 5 \
+            | jq -R . | jq -s --argjson v "${GITHUB_RUN_NUMBER}" --arg sha "${GITHUB_SHA::7}" \
+                '{versionCode: $v, sha: $sha, notes: .}' > version.json
           cat version.json
       - uses: actions/upload-artifact@v4
         with:
