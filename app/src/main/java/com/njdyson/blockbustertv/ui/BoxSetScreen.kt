@@ -36,8 +36,9 @@ fun BoxSetScreen(app: AppState, shelfId: String, setId: String, onOpen: (Film) -
     val owned by app.shelfStore.owned.collectAsState()
     val shelf = shelves.firstOrNull { it.id == shelfId }
     val set = shelf?.sets?.firstOrNull { it.id == setId }
-    // In release order, earliest first.
+    // In release order, earliest first, leaving out any above the TV's age limit.
     val films = set?.films.orEmpty().mapNotNull { id -> shelf?.films?.firstOrNull { it.jwId == id } }
+        .filter { app.withinAgeLimit(it.jwId) }
         .sortedBy { app.films[it.jwId]?.year ?: it.year ?: Int.MAX_VALUE }
     var focused by remember { mutableStateOf<String?>(null) }
     var menuFor by remember { mutableStateOf<ShelfFilm?>(null) }
