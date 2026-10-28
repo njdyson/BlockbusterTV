@@ -30,6 +30,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Full-screen trailer player. Its own activity: inside Compose, Fire TV showed no picture. -->
+        <activity
+            android:name=".TrailerActivity"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.BlockbusterTV" />
+
         <!-- Hands downloaded update APKs to the system installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"
