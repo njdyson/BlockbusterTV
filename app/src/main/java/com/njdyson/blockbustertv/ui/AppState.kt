@@ -17,11 +17,18 @@ import com.njdyson.blockbustertv.data.UnlinkedException
 import com.njdyson.blockbustertv.data.FilmLauncher
 import com.njdyson.blockbustertv.data.FilmRepository
 import com.njdyson.blockbustertv.data.JustWatch
+import com.njdyson.blockbustertv.data.Plex
+import com.njdyson.blockbustertv.data.PlexFilm
+import com.njdyson.blockbustertv.data.PlexIndex
+import com.njdyson.blockbustertv.data.PlexLibrary
+import com.njdyson.blockbustertv.data.PlexStore
 import com.njdyson.blockbustertv.data.Services
 import com.njdyson.blockbustertv.data.Shelf
 import com.njdyson.blockbustertv.data.ShelfFilm
 import com.njdyson.blockbustertv.data.ShelfStore
 import com.njdyson.blockbustertv.data.isSeriesId
+import com.njdyson.blockbustertv.linklab.LinkSpec
+import com.njdyson.blockbustertv.linklab.ServiceTest
 import kotlinx.coroutines.flow.StateFlow
 import com.njdyson.blockbustertv.server.EditServer
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +44,7 @@ sealed interface Screen {
     data object Search : Screen
     data object PhoneEdit : Screen
     data object LinkAccount : Screen
+    data object PlexLink : Screen
     data object Settings : Screen
     data object LinkLab : Screen
     data class BoxSet(val shelfId: String, val setId: String) : Screen
@@ -52,6 +60,7 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
     val launcher = FilmLauncher(context, services)
     val server = EditServer(context, shelfStore, justWatch) { jwId -> films[jwId]?.poster }
     private val account = AccountStore(context)
+    val plex = PlexStore(context)
     val serverUrl: String = BuildConfig.SERVER_URL
 
     /** True when this TV is linked to an account on the server, which then holds the shelves. */
@@ -122,11 +131,90 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
 
     /**
      * Free to watch: included at no extra cost on one of the services in services.json
-     * (subscription, free or with ads), or already owned on YouTube. Rent or buy only, not
-     * streaming, or not loaded yet doesn't count.
+     * (subscription, free or with ads), already owned on YouTube, or on the user's own Plex
+     * server. Rent or buy only, not streaming, or not loaded yet doesn't count.
      */
     fun isFreeToWatch(film: ShelfFilm): Boolean =
-        film.jwId in shelfStore.owned.value || films[film.jwId]?.watchOffers?.isNotEmpty() == true
+        film.jwId in shelfStore.owned.value || films[film.jwId]?.watchOffers?.isNotEmpty() == true || plexCopy(film) != null
+
+    // Rebuilt only when the Plex film list changes.
+    private var plexIndexFor: PlexLibrary? = null
+    private var plexIndexCache = PlexIndex(null)
+    private val plexIndex: PlexIndex
+        get() = plex.library.let { lib ->
+            if (lib !== plexIndexFor) { plexIndexCache = PlexIndex(lib); plexIndexFor = lib }
+            plexIndexCache
+        }
+
+    /** The user's own copy of a film on their Plex server, if it has one. Films only. */
+    fun plexCopy(film: ShelfFilm): PlexFilm? {
+        if (isSeriesId(film.jwId)) return null
+        val index = plexIndex.takeUnless { it.isEmpty } ?: return null
+        val data = films[film.jwId]
+        return index.find(data?.imdbId ?: film.imdbId, data?.title ?: film.title, data?.year ?: film.year)
+    }
+
+    fun plexCopy(film: Film): PlexFilm? = plexCopy(ShelfFilm(film.jwId, film.imdbId, film.title, film.year))
+
+    var plexStatus by mutableStateOf<String?>(null)
+        private set
+
+    /** Reads the Plex film list again: from Settings, or quietly on launch when it's a few hours old. */
+    fun refreshPlex(quiet: Boolean = false) = scope.launch {
+        if (!plex.connected) return@launch
+        if (!quiet) plexStatus = "Reading your Plex films…"
+        try {
+            val library = withContext(Dispatchers.IO) { plex.refresh() }
+            plexStatus = if (quiet) null else plexSummary(library)
+        } catch (e: Exception) {
+            if (!quiet) plexStatus = e.message ?: "Couldn't reach your Plex server"
+        }
+    }
+
+    /** E.g. "312 films on NAS, 41 of them on your shelves". */
+    fun plexSummary(library: PlexLibrary): String {
+        val onShelves = (shelfStore.shelves.value.flatMap { it.films } + shortlist).distinctBy { it.jwId }.count { plexCopy(it) != null }
+        return "${library.films.size} films on ${library.serverName.ifBlank { "your Plex server" }}, $onShelves of them on your shelves"
+    }
+
+    fun disconnectPlex() {
+        plex.disconnect()
+        plexStatus = null
+    }
+
+    /**
+     * Link Lab tests for opening a film on the user's own server in the Plex app. The link
+     * format for that isn't known, so these are candidates; the film page link is known to open.
+     */
+    suspend fun plexLinkTests(): List<ServiceTest> {
+        val library = plex.library ?: return emptyList()
+        val onShelves = (shelfStore.shelves.value.flatMap { it.films } + shortlist).firstNotNullOfOrNull { f ->
+            plexCopy(f)?.let { it to films[f.jwId] }
+        }
+        val (copy, film) = onShelves ?: (library.films.firstOrNull { it.plexId != null } ?: library.films.firstOrNull())?.let { it to null } ?: return emptyList()
+        val page = copy.plexId?.let { withContext(Dispatchers.IO) { Plex.pageUrl(it) } }
+        val key = java.net.URLEncoder.encode("/library/metadata/${copy.ratingKey}", "UTF-8")
+        val server = library.machineId
+        val links = listOfNotNull(
+            page?.let { LinkSpec("Plex film page", it, Plex.PACKAGE) },
+            LinkSpec("plex://server", "plex://server://$server/com.plexapp.plugins.library/library/metadata/${copy.ratingKey}", Plex.PACKAGE),
+            LinkSpec("plex://preplay", "plex://preplay/?metadataKey=$key&metadataType=1&server=$server", Plex.PACKAGE),
+            LinkSpec("plex://play", "plex://play/?metadataKey=$key&metadataType=1&server=$server", Plex.PACKAGE),
+            LinkSpec("app.plex.tv details", "https://app.plex.tv/desktop/#!/server/$server/details?key=$key", Plex.PACKAGE),
+        )
+        return listOf(
+            ServiceTest(
+                service = "plexown",
+                serviceName = "Plex (your server)",
+                film = listOfNotNull(copy.title, copy.year?.let { "($it)" }).joinToString(" "),
+                imdbId = copy.imdbId.orEmpty(),
+                packages = listOf(Plex.PACKAGE),
+                links = links,
+                poster = film?.poster,
+                backdrop = film?.backdrop,
+            ),
+        )
+    }
 
     /**
      * Films picked while browsing, to compare side by side before choosing one. Kept on this
@@ -230,6 +318,7 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
         (shelves.flatMap { s -> s.films.map { it.jwId } } + shortlist.map { it.jwId }).distinct()
 
     fun load() = scope.launch {
+        if (plex.isStale()) refreshPlex(quiet = true)
         films = repository.cached()
         if (films.isEmpty() || repository.isStale()) refresh() else fetchMissing(shelfStore.shelves.value + shelfStore.series.value)
     }

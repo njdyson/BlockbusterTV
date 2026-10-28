@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -12,6 +14,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import com.njdyson.blockbustertv.linklab.LinkLabScreen
+import com.njdyson.blockbustertv.linklab.ServiceTest
 import com.njdyson.blockbustertv.ui.AppState
 import com.njdyson.blockbustertv.ui.BlockbusterTheme
 import com.njdyson.blockbustertv.ui.BoxSetScreen
@@ -19,6 +22,7 @@ import com.njdyson.blockbustertv.ui.DetailScreen
 import com.njdyson.blockbustertv.ui.HomeScreen
 import com.njdyson.blockbustertv.ui.LinkAccountScreen
 import com.njdyson.blockbustertv.ui.PhoneEditScreen
+import com.njdyson.blockbustertv.ui.PlexLinkScreen
 import com.njdyson.blockbustertv.ui.Screen
 import com.njdyson.blockbustertv.ui.SearchScreen
 import com.njdyson.blockbustertv.ui.SettingsScreen
@@ -79,8 +83,14 @@ class MainActivity : ComponentActivity() {
                         resumeCount.intValue,
                         onLinkAccount = { open(Screen.LinkAccount) },
                         onLinkLab = { open(Screen.LinkLab) },
+                        onPlexLink = { open(Screen.PlexLink) },
                     )
-                    Screen.LinkLab -> LinkLabScreen(resumeCount = resumeCount.intValue)
+                    Screen.PlexLink -> PlexLinkScreen(app, onDone = ::back)
+                    Screen.LinkLab -> {
+                        // Candidate links for the user's own Plex server, once the film to test with is looked up.
+                        val plexTests by produceState(emptyList<ServiceTest>()) { value = app.plexLinkTests() }
+                        LinkLabScreen(resumeCount = resumeCount.intValue, extraTests = plexTests)
+                    }
                 }
             }
         }

@@ -70,6 +70,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.njdyson.blockbustertv.data.Film
 import com.njdyson.blockbustertv.data.FilmLauncher
+import com.njdyson.blockbustertv.data.Plex
 
 /**
  * The store floor: a preview of the focused film at the top ("the back of the box"),
@@ -92,7 +93,7 @@ fun HomeScreen(
     val allShelves = remember(savedShelves, app.shuffleSeed) { savedShelves.shuffled(app.shuffleSeed) }
     val owned by app.shelfStore.owned.collectAsState()
     // With Free to watch on, each shelf keeps only its free films, and shelves left empty are hidden.
-    val shelves = remember(allShelves, app.freeOnly, app.films, owned) {
+    val shelves = remember(allShelves, app.freeOnly, app.films, owned, app.plex.library) {
         if (!app.freeOnly) allShelves
         else allShelves.map { shelf -> shelf.onlyFilms(app::isFreeToWatch) }.filter { it.films.isNotEmpty() }
     }
@@ -247,6 +248,7 @@ fun HomeScreen(
                                         title = item.film.title,
                                         fallbackPoster = item.film.poster,
                                         ownedOnYouTube = item.film.jwId in owned,
+                                        onPlex = app.plexCopy(item.film) != null,
                                         shortlisted = app.isShortlisted(item.film.jwId),
                                         requestFocus = wantsFocus,
                                         onFocused = { app.focusedKey = key },
@@ -419,6 +421,7 @@ internal fun VhsBox(
     title: String,
     fallbackPoster: String?,
     ownedOnYouTube: Boolean = false,
+    onPlex: Boolean = false,
     shortlisted: Boolean = false,
     setCount: Int? = null,
     requestFocus: Boolean,
@@ -492,11 +495,14 @@ internal fun VhsBox(
                     when {
                         setCount != null -> Text("Box set", fontSize = 12.sp, color = TicketYellow)
                         film == null -> Unit
-                        ownedOnYouTube || film.watchServices.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        onPlex || ownedOnYouTube || film.watchServices.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (onPlex) {
+                                AsyncImage(Plex.ICON, "On your Plex server", Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)))
+                            }
                             if (ownedOnYouTube) {
                                 AsyncImage(FilmLauncher.YOUTUBE_ICON, "Owned on YouTube", Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)))
                             }
-                            ServiceIcons(film.watchServices, max = if (ownedOnYouTube) 3 else 4)
+                            ServiceIcons(film.watchServices.filterNot { onPlex && it.serviceId == "plex" }, max = 4 - listOf(onPlex, ownedOnYouTube).count { it })
                         }
                         film.cheapestRent != null -> Text("Rent ${film.cheapestRent?.price.orEmpty()}", fontSize = 12.sp, color = TicketYellow)
                         else -> Text("Not streaming", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
