@@ -266,6 +266,10 @@ const SERVICE_PACKAGES = {
   iplayer: "bbc", itvx: "itv", channel4: "al4", now: "ntv",
 }
 const SORTS = { popular: "POPULAR", rating: "IMDB_SCORE", newest: "RELEASE_YEAR", az: "ALPHABETICAL" }
+// JustWatch can't filter on spoken language, so "English" means made in an English-speaking country.
+const ENGLISH_COUNTRIES = ["GB", "US", "IE", "CA", "AU", "NZ"]
+// Browsing by top rated skips titles with few IMDb votes, which otherwise fill the list with 9.8s from 20 votes.
+const TOP_RATED_MIN_VOTES = 10000
 
 function gql(query, variables) {
   const res = $http.send({
@@ -282,7 +286,8 @@ function gql(query, variables) {
 /**
  * Film search on JustWatch (GB), or series search with type "series". Every other part is
  * optional and they combine: q (title), person (JustWatch person ID, e.g. "tp1725"), genres
- * (codes like "scf"), yearMin/yearMax, minRating (IMDb), services (our IDs: streaming there now), sort.
+ * (codes like "scf"), yearMin/yearMax, minRating (IMDb), services (our IDs: streaming there now),
+ * lang ("en": English-speaking countries only), sort.
  */
 function search(params) {
   const p = params || {}
@@ -302,7 +307,9 @@ function search(params) {
     filter.packages = packages
     filter.monetizationTypes = ["FLATRATE", "FREE", "ADS"]
   }
+  if (p.lang === "en") filter.productionCountries = ENGLISH_COUNTRIES
   if (Object.keys(filter).length === 1) return []
+  if (p.sort === "rating" && !text && !filter.personId) filter.imdbVotes = { min: TOP_RATED_MIN_VOTES }
   const query = `query($filter: TitleFilter!, $sort: PopularTitlesSorting!) {
     popularTitles(country: GB, first: 24, sortBy: $sort, filter: $filter) {
       edges { node { id ... on ${series ? "Show" : "Movie"} { content(country: GB, language: "en") {

@@ -92,10 +92,11 @@ fun HomeScreen(
     // Shelves, and the films on them, in a random order that's new each session (AppState.shuffleSeed).
     val allShelves = remember(savedShelves, app.shuffleSeed) { savedShelves.shuffled(app.shuffleSeed) }
     val owned by app.shelfStore.owned.collectAsState()
-    // With Free to watch on, each shelf keeps only its free films, and shelves left empty are hidden.
-    val shelves = remember(allShelves, app.freeOnly, app.films, owned, app.plex.library) {
-        if (!app.freeOnly) allShelves
-        else allShelves.map { shelf -> shelf.onlyFilms(app::isFreeToWatch) }.filter { it.films.isNotEmpty() }
+    // With Free to watch on, or an age limit, each shelf keeps only the films that pass, and shelves left empty are hidden.
+    val shelves = remember(allShelves, app.freeOnly, app.ageLimit, app.films, owned, app.plex.library) {
+        if (!app.freeOnly && app.ageLimit == null) allShelves
+        else allShelves.map { shelf -> shelf.onlyFilms { (!app.freeOnly || app.isFreeToWatch(it)) && app.withinAgeLimit(it.jwId) } }
+            .filter { it.films.isNotEmpty() }
     }
     fun saved(shelf: Shelf) = savedShelves.firstOrNull { it.id == shelf.id } ?: shelf
     val yearOf = { film: ShelfFilm -> app.films[film.jwId]?.year ?: film.year }
@@ -189,6 +190,7 @@ fun HomeScreen(
                 Text(
                     when {
                         app.freeOnly && allShelves.isNotEmpty() -> "Nothing on your shelves is free to watch right now. Choose Show all ${app.noun} to see everything."
+                        app.ageLimit != null && allShelves.isNotEmpty() -> "Nothing on your shelves is rated ${app.ageLimit?.label} or under. The age limit is in Settings."
                         app.seriesMode -> "No series shelves yet. Choose Add series, or switch to Series in the phone app, to start one."
                         else -> "No shelves yet. Choose Edit on phone or Add film to start one."
                     },

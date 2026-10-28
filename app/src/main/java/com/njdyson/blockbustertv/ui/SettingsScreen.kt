@@ -10,7 +10,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -21,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
+import com.njdyson.blockbustertv.data.AgeLimit
 import com.njdyson.blockbustertv.linklab.deviceInfo
 import com.njdyson.blockbustertv.update.UpdateButton
 import com.njdyson.blockbustertv.update.Updater
@@ -28,6 +32,7 @@ import com.njdyson.blockbustertv.update.Updater
 @Composable
 fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, onLinkLab: () -> Unit, onPlexLink: () -> Unit) {
     val first = remember { FocusRequester() }
+    var choosingAge by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().background(NightNavy).verticalScroll(rememberScrollState()).padding(horizontal = 48.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -83,7 +88,13 @@ fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, o
             OutlinedButton(onClick = onPlexLink) { Text("Connect your Plex server") }
         }
 
-        OutlinedButton(onClick = onLinkLab) { Text("Link Lab: test how each streaming app opens") }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = onLinkLab) { Text("Link Lab: test how each streaming app opens") }
+            // Hides films and series rated above it everywhere on this TV.
+            OutlinedButton(onClick = { choosingAge = true }) {
+                Text("Age limit: ${app.ageLimit?.let { "${it.label} and under" } ?: "None"}")
+            }
+        }
 
         Text(
             "Film data, availability and IMDb ratings from JustWatch. Trailers from TMDB and YouTube.",
@@ -92,4 +103,13 @@ fun SettingsScreen(app: AppState, resumeCount: Int, onLinkAccount: () -> Unit, o
         )
     }
     LaunchedEffect(Unit) { first.requestFocusWhenReady() }
+
+    if (choosingAge) {
+        ChoiceDialog(
+            "Show films and series rated",
+            listOf("Anything (no limit)" to { app.chooseAgeLimit(null) }) +
+                AgeLimit.entries.map { limit -> "${limit.label} and under" to { app.chooseAgeLimit(limit) } },
+            onDismiss = { choosingAge = false },
+        )
+    }
 }

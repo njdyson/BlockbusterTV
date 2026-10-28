@@ -42,7 +42,7 @@ import kotlinx.coroutines.delay
 import java.text.Normalizer
 
 /** Which filter's picker is open. */
-private enum class Picker { GENRE, DECADE, RATING, SERVICE, SORT }
+private enum class Picker { GENRE, DECADE, RATING, SERVICE, LANGUAGE, SORT }
 
 /**
  * Quick add on the TV: search by title, actor or director, narrow it down with filters
@@ -53,7 +53,8 @@ fun SearchScreen(app: AppState) {
     // Series mode searches series and adds them to the series shelves.
     val series = app.seriesMode
     val shelves by app.currentShelves.collectAsState()
-    var filters by remember { mutableStateOf(SearchFilters(series = series)) }
+    // Language is remembered between visits, and the age limit from Settings always applies.
+    var filters by remember { mutableStateOf(SearchFilters(series = series, english = app.englishOnly, ageLimit = app.ageLimit)) }
     var results by remember { mutableStateOf<List<ShelfFilm>>(emptyList()) }
     var people by remember { mutableStateOf<List<Person>>(emptyList()) }
     var message by remember {
@@ -106,6 +107,7 @@ fun SearchScreen(app: AppState) {
             item { FilterButton("Decade", filters.decade?.let { "${it % 100}s".padStart(3, '0') }) { picker = Picker.DECADE } }
             item { FilterButton("IMDb", filters.minRating?.let { "${it.toInt()}+" }) { picker = Picker.RATING } }
             item { FilterButton("On", filters.service?.let { app.services.byId(it)?.name }) { picker = Picker.SERVICE } }
+            item { FilterButton("Language", "English".takeIf { filters.english }) { picker = Picker.LANGUAGE } }
             item { FilterButton("Sort", filters.sort.label.takeIf { filters.sort != SearchSort.POPULAR }) { picker = Picker.SORT } }
         }
         // People matching the text: choose one to see their films.
@@ -163,6 +165,14 @@ fun SearchScreen(app: AppState) {
             "Streaming on",
             listOf("Anywhere" to { filters = filters.copy(service = null) }) +
                 app.services.all.filter { it.id != "youtube" }.map { service -> service.name to { filters = filters.copy(service = service.id) } },
+            onDismiss = { picker = null },
+        )
+        Picker.LANGUAGE -> ChoiceDialog(
+            "Language",
+            listOf(
+                "Any language" to { filters = filters.copy(english = false); app.showEnglishOnly(false) },
+                "English" to { filters = filters.copy(english = true); app.showEnglishOnly(true) },
+            ),
             onDismiss = { picker = null },
         )
         Picker.SORT -> ChoiceDialog(

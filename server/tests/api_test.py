@@ -142,6 +142,9 @@ try:
     eighties = call("GET", "/api/bbtv/search?genres=scf&yearMin=1980&yearMax=1989&minRating=7&services=netflix,prime,disney", token=token)
     assert eighties and all(1980 <= f["year"] <= 1989 and f["rating"] >= 7 for f in eighties), eighties
     assert call("GET", "/api/bbtv/search", token=token) == []  # nothing asked, nothing returned
+    # Top rated in English: well-known films, not 9.8s from a handful of votes.
+    top = call("GET", "/api/bbtv/search?lang=en&sort=rating", token=token)
+    assert "The Shawshank Redemption" in [f["title"] for f in top[:5]], [f["title"] for f in top[:5]]
     film = call("GET", "/api/bbtv/film?id=tm92641", token=token)
     assert film["title"] == "Inception" and film["year"] == 2010 and film["rating"] > 8 and film["synopsis"], film
     assert any(d["name"] == "Christopher Nolan" and d["id"].startswith("tp") for d in film["directors"]), film["directors"]
