@@ -61,7 +61,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.OutlinedButton
-import androidx.tv.material3.OutlinedIconButton
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
@@ -145,16 +145,26 @@ fun HomeScreen(
                 Box(Modifier.weight(1f)) {
                     app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
-                HeaderButton(if (app.freeOnly) "Show all films" else "Free to watch") { app.showFreeOnly(!app.freeOnly) }
-                HeaderButton(if (app.shortlist.isEmpty()) "Shortlist" else "Shortlist (${app.shortlist.size})", onShortlist)
-                HeaderButton("Add film", onSearch)
-                HeaderButton("Edit on phone", onPhoneEdit)
+                // Icons only; the focused one shows its name. Free to watch turns yellow while it's on.
+                HeaderIconButton(
+                    HeaderIcons.Play,
+                    if (app.freeOnly) "Show all films" else "Free to watch",
+                    active = app.freeOnly,
+                ) { app.showFreeOnly(!app.freeOnly) }
+                HeaderIconButton(
+                    HeaderIcons.Star,
+                    "Shortlist",
+                    badge = app.shortlist.size.takeIf { it > 0 }?.toString(),
+                    onClick = onShortlist,
+                )
+                HeaderIconButton(HeaderIcons.Add, "Add film", onClick = onSearch)
+                HeaderIconButton(HeaderIcons.Phone, "Edit on phone", onClick = onPhoneEdit)
                 // Shows the view the press switches to.
                 HeaderIconButton(
                     if (app.overview) HeaderIcons.Shelves else HeaderIcons.Tiles,
                     if (app.overview) "Shelves" else "Overview",
                 ) { app.showOverview(!app.overview) }
-                HeaderIconButton(HeaderIcons.Settings, "Settings", onSettings)
+                HeaderIconButton(HeaderIcons.Settings, "Settings", onClick = onSettings)
             }
             if (app.overview && shelves.isNotEmpty()) {
                 ShelfOverview(app, shelves, onPick = { shelf ->
@@ -540,18 +550,33 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
     }
 }
 
-/** A compact header button whose label always stays on one line. */
+/**
+ * An icon header button. Its name appears beside the icon while it has focus;
+ * [badge] (the shortlist count) shows all the time, and [active] tints the icon yellow.
+ */
 @Composable
-private fun HeaderButton(label: String, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
-    }
-}
-
-/** An icon-only header button, used where the meaning is clear without a label. */
-@Composable
-private fun HeaderIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    OutlinedIconButton(onClick = onClick) {
-        Icon(icon, contentDescription = description, modifier = Modifier.size(20.dp))
+private fun HeaderIconButton(
+    icon: ImageVector,
+    label: String,
+    active: Boolean = false,
+    badge: String? = null,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    OutlinedButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+        modifier = Modifier.onFocusChanged { focused = it.isFocused },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = if (active && !focused) TicketYellow else LocalContentColor.current,
+                modifier = Modifier.size(20.dp),
+            )
+            badge?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+            if (focused) Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
+        }
     }
 }
