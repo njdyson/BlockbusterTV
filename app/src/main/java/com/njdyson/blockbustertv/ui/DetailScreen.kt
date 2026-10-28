@@ -64,6 +64,9 @@ fun DetailScreen(app: AppState, film: Film) {
     // Owning on YouTube is for films; series don't offer it.
     val ownedOnYouTube = !film.isSeries && film.jwId in owned
     var buying by remember { mutableStateOf(false) }
+    var playingTrailer by remember(film.jwId) { mutableStateOf<String?>(null) }
+    var trailersClosed by remember(film.jwId) { mutableStateOf(0) }
+    val trailerButton = remember { FocusRequester() }
 
     Box(Modifier.fillMaxSize().background(NightNavy)) {
         Backdrop(film.backdrop, alpha = 0.6f)
@@ -163,7 +166,7 @@ fun DetailScreen(app: AppState, film: Film) {
                 SectionLabel("EXTRAS")
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     trailerId?.let { id ->
-                        OutlinedButton(onClick = { app.launcher.trailer(id) }) {
+                        OutlinedButton(onClick = { playingTrailer = id }, modifier = Modifier.focusRequester(trailerButton)) {
                             Text("▶  Play trailer")
                         }
                     }
@@ -175,6 +178,13 @@ fun DetailScreen(app: AppState, film: Film) {
         }
     }
     LaunchedEffect(film.jwId, ownedOnYouTube) { firstButton.requestFocusWhenReady() }
+
+    playingTrailer?.let { id ->
+        fun stop() { playingTrailer = null; trailersClosed++ }
+        TrailerPlayer(id, film.title, onClose = ::stop, onFallback = { stop(); app.launcher.trailer(id) })
+    }
+    // Back from a trailer: focus returns to its button.
+    LaunchedEffect(trailersClosed) { if (trailersClosed > 0) trailerButton.requestFocusWhenReady() }
 
     if (buying) {
         BuyOnYouTubeDialog(
