@@ -1,6 +1,5 @@
 package com.njdyson.blockbustertv
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -15,27 +14,23 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * Plays a YouTube trailer full screen inside the app, using YouTube's embedded player in a
- * WebView. It's a plain activity with the WebView as its content, not a Compose screen:
- * inside Compose, Fire TV played the sound but showed no picture.
+ * Plays a YouTube trailer full screen inside the app, using the embedded player in
+ * [TrailerWebView] (preloaded by the film page when it can be). It's a plain activity with
+ * the WebView as its content, not a Compose screen: inside Compose, Fire TV played the
+ * sound but showed no picture.
  *
  * The remote is handled here rather than by the page: OK pauses, left and right skip 10
  * seconds, Back closes. If YouTube won't play it embedded (some trailers block embedding)
  * or it never starts, it finishes with [RESULT_FALLBACK] so the caller can open the YouTube app.
  */
-class TrailerActivity : Activity() {
+class TrailerActivity : Activity(), TrailerWebView.Listener {
 
     private val main = Handler(Looper.getMainLooper())
-    private lateinit var webView: WebView
     private lateinit var hintBar: View
     private lateinit var hint: TextView
 
@@ -47,26 +42,14 @@ class TrailerActivity : Activity() {
     // A trailer that hasn't started within 20 seconds isn't going to: try the YouTube app.
     private val giveUp = Runnable { if (state == -1 || state == 3) fallBack() }
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val videoId = intent.getStringExtra(EXTRA_VIDEO_ID) ?: return finish()
         val title = intent.getStringExtra(EXTRA_TITLE).orEmpty()
 
-        webView = WebView(this).apply {
-            // The remote is handled in dispatchKeyEvent, not by the page.
-            isFocusable = false
-            isFocusableInTouchMode = false
-            setBackgroundColor(Color.BLACK)
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
-            webViewClient = WebViewClient()
-            webChromeClient = WebChromeClient()
-            addJavascriptInterface(PlayerEvents(), "Android")
-            // YouTube refuses embeds with no referrer, so the page gets our server's address.
-            loadDataWithBaseURL("$ORIGIN/", playerPage(videoId), "text/html", "utf-8", null)
-        }
+        val webView = TrailerWebView.take(this, videoId, this)
+        // A preloaded player is paused (and muted) at the start: play it. A new one plays once it loads.
+        js("player.unMute(); player.playVideo();")
 
         hint = TextView(this).apply {
             setTextColor(Color.argb(204, 255, 255, 255))
@@ -120,14 +103,11 @@ class TrailerActivity : Activity() {
 
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
-        if (::webView.isInitialized) {
-            webView.loadUrl("about:blank")
-            webView.destroy()
-        }
+        TrailerWebView.release()
         super.onDestroy()
     }
 
-    private fun js(code: String) = webView.evaluateJavascript("if (window.player && player.getPlayerState) { $code }", null)
+    private fun js(code: String) = TrailerWebView.js(code)
 
     private fun showHint() {
         hint.text = when (state) {
@@ -145,55 +125,21 @@ class TrailerActivity : Activity() {
         finish()
     }
 
-    private inner class PlayerEvents {
-        @JavascriptInterface
-        fun onState(value: Int) {
-            main.post {
-                state = value
-                if (value == 0) finish() else showHint()
-            }
-        }
-
-        @JavascriptInterface
-        fun onError(code: Int) {
-            main.post { fallBack() }
-        }
+    override fun onState(state: Int) {
+        this.state = state
+        if (state == 0) finish() else showHint()
     }
+
+    override fun onError(code: Int) = fallBack()
 
     companion object {
         const val RESULT_FALLBACK = RESULT_FIRST_USER
         private const val EXTRA_VIDEO_ID = "videoId"
         private const val EXTRA_TITLE = "title"
-        private val ORIGIN = BuildConfig.SERVER_URL.trimEnd('/')
 
         fun intent(context: Context, videoId: String, title: String): Intent =
             Intent(context, TrailerActivity::class.java)
                 .putExtra(EXTRA_VIDEO_ID, videoId)
                 .putExtra(EXTRA_TITLE, title)
-
-        private fun playerPage(videoId: String) = """
-<!doctype html>
-<html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>html, body { margin: 0; height: 100%; background: #000; overflow: hidden; } #player { width: 100%; height: 100%; }</style>
-</head><body>
-<div id="player"></div>
-<script>
-  var player;
-  function onYouTubeIframeAPIReady() {
-    player = new YT.Player('player', {
-      width: '100%', height: '100%', videoId: '$videoId',
-      playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, iv_load_policy: 3, playsinline: 1, modestbranding: 1, origin: '$ORIGIN' },
-      events: {
-        onReady: function (e) { e.target.playVideo(); },
-        onStateChange: function (e) { Android.onState(e.data); },
-        onError: function (e) { Android.onError(e.data); }
-      }
-    });
-  }
-</script>
-<script src="https://www.youtube.com/iframe_api"></script>
-</body></html>
-""".trimIndent()
     }
 }
