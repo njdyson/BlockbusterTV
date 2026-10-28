@@ -126,18 +126,20 @@ fun HomeScreen(
             Row(
                 Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Logo()
-                Spacer(Modifier.width(12.dp))
-                app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp) }
-                Spacer(Modifier.weight(1f))
-                OutlinedButton(onClick = { app.showFreeOnly(!app.freeOnly) }) { Text(if (app.freeOnly) "Show all films" else "Free to watch") }
-                OutlinedButton(onClick = { app.showOverview(!app.overview) }) { Text(if (app.overview) "Shelves" else "Overview") }
-                OutlinedButton(onClick = onShortlist) { Text(if (app.shortlist.isEmpty()) "Shortlist" else "Shortlist (${app.shortlist.size})") }
-                OutlinedButton(onClick = onSearch) { Text("Add film") }
-                OutlinedButton(onClick = onPhoneEdit) { Text("Edit on phone") }
-                OutlinedButton(onClick = onSettings) { Text("Settings") }
+                Spacer(Modifier.width(8.dp))
+                // The status takes whatever room the buttons leave and is cut short rather than squeezing them.
+                Box(Modifier.weight(1f)) {
+                    app.status?.let { Text(it, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+                HeaderButton(if (app.freeOnly) "Show all films" else "Free to watch") { app.showFreeOnly(!app.freeOnly) }
+                HeaderButton(if (app.overview) "Shelves" else "Overview") { app.showOverview(!app.overview) }
+                HeaderButton(if (app.shortlist.isEmpty()) "Shortlist" else "Shortlist (${app.shortlist.size})", onShortlist)
+                HeaderButton("Add film", onSearch)
+                HeaderButton("Edit on phone", onPhoneEdit)
+                HeaderButton("Settings", onSettings)
             }
             if (app.overview && shelves.isNotEmpty()) {
                 ShelfOverview(app, shelves, onPick = { shelf ->
@@ -511,5 +513,13 @@ private fun ShelfOverview(app: AppState, shelves: List<Shelf>, onPick: (Shelf) -
                 }
             }
         }
+    }
+}
+
+/** A compact header button whose label always stays on one line. */
+@Composable
+private fun HeaderButton(label: String, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+        Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
     }
 }
