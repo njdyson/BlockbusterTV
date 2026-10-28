@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.njdyson.blockbustertv.BuildConfig
 import com.njdyson.blockbustertv.data.AccountStore
+import com.njdyson.blockbustertv.data.AgeLimit
 import com.njdyson.blockbustertv.data.Film
 import com.njdyson.blockbustertv.data.RemoteLibrary
 import com.njdyson.blockbustertv.data.UnlinkedException
@@ -128,6 +129,32 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
     fun isFreeToWatch(film: ShelfFilm): Boolean =
         film.jwId in shelfStore.owned.value || films[film.jwId]?.watchOffers?.isNotEmpty() == true
 
+    /** Add searches only titles made in English-speaking countries. Remembered between launches. */
+    var englishOnly by mutableStateOf(uiPrefs.getBoolean("englishOnly", false))
+        private set
+
+    fun showEnglishOnly(show: Boolean) {
+        englishOnly = show
+        uiPrefs.edit().putBoolean("englishOnly", show).apply()
+    }
+
+    /**
+     * The highest age rating this TV shows (set in Settings), or null for everything. Films
+     * and series rated above it, or with no UK rating, are hidden everywhere: shelves, the
+     * shortlist and Add. Remembered between launches.
+     */
+    var ageLimit by mutableStateOf(uiPrefs.getString("ageLimit", null)?.let { name -> AgeLimit.entries.firstOrNull { it.name == name } })
+        private set
+
+    fun chooseAgeLimit(limit: AgeLimit?) {
+        ageLimit = limit
+        focusedKey = null
+        uiPrefs.edit().putString("ageLimit", limit?.name).apply()
+    }
+
+    /** Within the age limit. A title not loaded yet counts as unrated, so it shows once its rating is known. */
+    fun withinAgeLimit(jwId: String): Boolean = ageLimit?.allows(films[jwId]?.ageCertification) ?: true
+
     /**
      * Films picked while browsing, to compare side by side before choosing one. Kept on this
      * TV only (not synced to the account), in the order they were added. Remembered between launches.
@@ -140,7 +167,7 @@ class AppState(private val context: Context, private val scope: CoroutineScope) 
     fun isShortlisted(jwId: String): Boolean = shortlist.any { it.jwId == jwId }
 
     /** The shortlisted films, or the shortlisted series in series mode. */
-    val currentShortlist: List<ShelfFilm> get() = shortlist.filter { isSeriesId(it.jwId) == seriesMode }
+    val currentShortlist: List<ShelfFilm> get() = shortlist.filter { isSeriesId(it.jwId) == seriesMode && withinAgeLimit(it.jwId) }
 
     /** Adds the film to the shortlist, or takes it off if it's already there. */
     fun toggleShortlist(film: ShelfFilm) {

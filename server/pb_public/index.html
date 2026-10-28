@@ -122,9 +122,14 @@
   button.chip { background: rgba(255,255,255,.12); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 600; }
   button.chip.on { background: var(--yellow); color: var(--navy); }
   button.chip.person { background: #2d3a7a; }
-  .group-label { font-size: 12px; letter-spacing: 1.5px; color: var(--muted); margin: 12px 0 6px; font-weight: 700; }
-  .group-label:first-child { margin-top: 0; }
-  #filters .chips { margin-top: 0; }
+  /* Filters: a compact grid of dropdowns. */
+  #filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; padding: 12px; }
+  #filters label { display: grid; gap: 3px; min-width: 0; font-size: 11px; letter-spacing: 1px; color: var(--muted); font-weight: 700; }
+  #filters select { width: 100%; min-width: 0; font: inherit; font-size: 15px; font-weight: 600; letter-spacing: 0; padding: 7px 8px;
+                    border-radius: 8px; border: 0; background: rgba(255,255,255,.12); color: var(--text); }
+  #filters select.on { background: var(--yellow); color: var(--navy); }
+  #filters select option { color: #111; background: #fff; }
+  #filters .filter-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
   .rating { position: absolute; bottom: 6px; left: 6px; background: var(--yellow); color: var(--navy); border-radius: 999px;
             font-size: 11px; font-weight: 800; padding: 1px 6px; }
   .shelves-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 8px; }
@@ -403,7 +408,7 @@ function setMode(next) {
   results = [];
   $("people").replaceChildren();
   // Reality TV is a series-only genre.
-  filters.genres = filters.genres.filter((g) => isSeries() || g !== "rly");
+  if (!isSeries() && filters.genre === "rly") filters.genre = "";
   renderMode();
   render();
   search();
@@ -607,40 +612,46 @@ const GENRES = [["act", "Action"], ["cmy", "Comedy"], ["drm", "Drama"], ["scf", 
   ["hrr", "Horror"], ["rma", "Romance"], ["fml", "Family"], ["ani", "Animation"], ["crm", "Crime"],
   ["fnt", "Fantasy"], ["doc", "Documentary"], ["war", "War"], ["wsn", "Western"], ["msc", "Music"],
   ["hst", "History"], ["spt", "Sport"]];
-const DECADES = [["", "Any"], ["1950", "50s"], ["1960", "60s"], ["1970", "70s"], ["1980", "80s"],
-  ["1990", "90s"], ["2000", "00s"], ["2010", "10s"], ["2020", "20s"]];
-const RATINGS = [["", "Any"], ["6", "6+"], ["7", "7+"], ["8", "8+"]];
+const DECADES = [["1950", "1950s"], ["1960", "1960s"], ["1970", "1970s"], ["1980", "1980s"],
+  ["1990", "1990s"], ["2000", "2000s"], ["2010", "2010s"], ["2020", "2020s"]];
+const RATINGS = [["6", "6+"], ["7", "7+"], ["8", "8+"]];
 const SERVICES = [["netflix", "Netflix"], ["prime", "Prime Video"], ["disney", "Disney+"], ["appletv", "Apple TV"],
   ["iplayer", "iPlayer"], ["itvx", "ITVX"], ["channel4", "Channel 4"], ["now", "NOW"], ["plex", "Plex"]];
+const LANGUAGES = [["en", "English"]];
 const SORTS = [["popular", "Popular"], ["rating", "Top rated"], ["newest", "Newest"], ["az", "A–Z"]];
 
-const NO_FILTERS = { genres: [], decade: "", minRating: "", services: [], sort: "popular", person: null };
-let filters = { ...NO_FILTERS, genres: [], services: [] };
+// Language is remembered between visits; the rest start empty.
+const NO_FILTERS = { genre: "", decade: "", minRating: "", service: "", sort: "popular", person: null };
+let filters = { ...NO_FILTERS, lang: localStorage.getItem("bbtv_lang") || "" };
 
-const filterCount = () =>
-  filters.genres.length + filters.services.length + (filters.decade ? 1 : 0) + (filters.minRating ? 1 : 0) + (filters.sort !== "popular" ? 1 : 0);
+// Filters that narrow the results. Language alone doesn't start a browse, since it's remembered.
+const narrowing = () => ["genre", "decade", "minRating", "service"].filter((k) => filters[k]).length + (filters.sort !== "popular" ? 1 : 0);
+const filterCount = () => narrowing() + (filters.lang ? 1 : 0);
 
-function chipGroup(label, options, isOn, toggle) {
-  return [
-    el("div", { className: "group-label", textContent: label }),
-    el("div", { className: "chips" }, ...options.map(([value, text]) =>
-      el("button", { className: "chip" + (isOn(value) ? " on" : ""), textContent: text, onclick: () => { toggle(value); filtersChanged(); } }))),
-  ];
+/** A labelled dropdown; the first option ("Any") is the empty value. Highlighted when set. */
+function dropdown(label, key, anyText, options) {
+  const select = el("select", { className: filters[key] && filters[key] !== NO_FILTERS[key] ? "on" : "" },
+    ...[["", anyText], ...options].map(([value, text]) => el("option", { value, textContent: text, selected: filters[key] === value })));
+  select.onchange = () => {
+    filters[key] = select.value || NO_FILTERS[key] || "";
+    if (key === "lang") localStorage.setItem("bbtv_lang", filters.lang);
+    filtersChanged();
+  };
+  return el("label", {}, label, select);
 }
-
-const toggleIn = (list, value) => list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
 function renderFilters() {
   $("filtersBtn").textContent = filterCount() ? `Filters (${filterCount()})` : "Filters";
   $("filters").replaceChildren(
-    ...chipGroup("GENRE", isSeries() ? [...GENRES, ["rly", "Reality TV"]] : GENRES, (v) => filters.genres.includes(v), (v) => { filters.genres = toggleIn(filters.genres, v); }),
-    ...chipGroup("DECADE", DECADES, (v) => filters.decade === v, (v) => { filters.decade = v; }),
-    ...chipGroup("IMDB RATING", RATINGS, (v) => filters.minRating === v, (v) => { filters.minRating = v; }),
-    ...chipGroup("STREAMING ON", SERVICES, (v) => filters.services.includes(v), (v) => { filters.services = toggleIn(filters.services, v); }),
-    ...chipGroup("SORT BY", SORTS, (v) => filters.sort === v, (v) => { filters.sort = v; }),
-    el("div", { className: "chips", style: "margin-top:14px" },
-      el("button", { className: "ghost small", textContent: "Clear filters", onclick: () => {
-        filters = { ...NO_FILTERS, genres: [], services: [], person: filters.person };
+    dropdown("GENRE", "genre", "Any", isSeries() ? [...GENRES, ["rly", "Reality TV"]] : GENRES),
+    dropdown("DECADE", "decade", "Any", DECADES),
+    dropdown("IMDB", "minRating", "Any", RATINGS),
+    dropdown("ON", "service", "Any", SERVICES),
+    dropdown("LANGUAGE", "lang", "Any", LANGUAGES),
+    dropdown("SORT", "sort", "Popular", SORTS.slice(1)),
+    el("div", { className: "filter-actions" },
+      el("button", { className: "ghost small", textContent: "Clear", onclick: () => {
+        filters = { ...NO_FILTERS, lang: filters.lang, person: filters.person };
         filtersChanged();
       } }),
       el("button", { className: "small", textContent: "Done", onclick: () => { $("filters").hidden = true; renderFilters(); } })),
@@ -650,9 +661,16 @@ function renderFilters() {
   if (filters.person) {
     active.push(el("button", { className: "chip on", textContent: `With ${filters.person.name}  ✕`, onclick: () => { filters.person = null; filtersChanged(); } }));
   }
-  if (filterCount() && $("filters").hidden) {
-    active.push(el("button", { className: "chip", textContent: `${filterCount()} filter${filterCount() > 1 ? "s" : ""}  ✕`, onclick: () => {
-      filters = { ...NO_FILTERS, genres: [], services: [], person: filters.person };
+  if (filters.lang && $("filters").hidden) {
+    active.push(el("button", { className: "chip", textContent: "English only  ✕", onclick: () => {
+      filters.lang = "";
+      localStorage.setItem("bbtv_lang", "");
+      filtersChanged();
+    } }));
+  }
+  if (narrowing() && $("filters").hidden) {
+    active.push(el("button", { className: "chip", textContent: `${narrowing()} filter${narrowing() > 1 ? "s" : ""}  ✕`, onclick: () => {
+      filters = { ...NO_FILTERS, lang: filters.lang, person: filters.person };
       filtersChanged();
     } }));
   }
@@ -697,13 +715,14 @@ async function search() {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (filters.person) params.set("person", filters.person.id);
-  if (filters.genres.length) params.set("genres", filters.genres.join(","));
+  if (filters.genre) params.set("genres", filters.genre);
   if (filters.decade) { params.set("yearMin", filters.decade); params.set("yearMax", String(+filters.decade + 9)); }
   if (filters.minRating) params.set("minRating", filters.minRating);
-  if (filters.services.length) params.set("services", filters.services.join(","));
+  if (filters.service) params.set("services", filters.service);
+  if (filters.lang) params.set("lang", filters.lang);
   if (filters.sort !== "popular") params.set("sort", filters.sort);
   if (isSeries()) params.set("type", "series");
-  const browsing = filters.person || filterCount() > 0;
+  const browsing = filters.person || narrowing() > 0;
   if (!q && !browsing) { results = []; renderResults(); $("people").replaceChildren(); return; }
   try {
     const [found, people] = await Promise.all([

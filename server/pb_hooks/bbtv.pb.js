@@ -35,14 +35,14 @@ routerAdd("POST", "/api/bbtv/import", (e) => {
   return e.json(200, lib.save(user.id, data))
 })
 
-// Film search: ?q=&person=&genres=&yearMin=&yearMax=&minRating=&services=&sort= (all optional),
+// Film search: ?q=&person=&genres=&yearMin=&yearMax=&minRating=&services=&lang=&sort= (all optional),
 // or series search with &type=series.
 routerAdd("GET", "/api/bbtv/search", (e) => {
   const lib = require(`${__hooks}/bbtv_lib.js`)
   lib.caller(e)
   const q = e.request.url.query()
   const params = {}
-  for (const key of ["q", "person", "genres", "yearMin", "yearMax", "minRating", "services", "sort", "type"]) params[key] = q.get(key)
+  for (const key of ["q", "person", "genres", "yearMin", "yearMax", "minRating", "services", "lang", "sort", "type"]) params[key] = q.get(key)
   return e.json(200, lib.search(params))
 })
 

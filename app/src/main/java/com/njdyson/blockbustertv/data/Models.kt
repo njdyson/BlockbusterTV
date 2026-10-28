@@ -94,6 +94,10 @@ data class SearchFilters(
     val sort: SearchSort = SearchSort.POPULAR,
     /** Search series instead of films. */
     val series: Boolean = false,
+    /** Only titles made in English-speaking countries (JustWatch can't filter on language itself). */
+    val english: Boolean = false,
+    /** The TV's age limit: only titles certified at or under it. */
+    val ageLimit: AgeLimit? = null,
 ) {
     val isEmpty: Boolean
         get() = text.isBlank() && person == null && genre == null && decade == null && minRating == null && service == null
@@ -110,5 +114,20 @@ data class SearchFilters(
         val SERIES_GENRES = listOf("rly" to "Reality TV")
         val DECADES = (1950..2020 step 10).toList()
         val RATINGS = listOf(6.0, 7.0, 8.0)
+        /** Countries counted as English-speaking for the English filter. */
+        val ENGLISH_COUNTRIES = listOf("GB", "US", "IE", "CA", "AU", "NZ")
     }
+}
+
+/**
+ * A maximum UK age rating for the TV. Titles rated above it, or with no UK rating, are hidden.
+ * [certificates] are JustWatch's UK certificates it allows.
+ */
+enum class AgeLimit(val label: String, val certificates: List<String>) {
+    U("U", listOf("U")),
+    PG("PG", listOf("U", "PG")),
+    TWELVE("12", listOf("U", "PG", "12A", "12")),
+    FIFTEEN("15", listOf("U", "PG", "12A", "12", "15"));
+
+    fun allows(certificate: String?): Boolean = certificate in certificates
 }

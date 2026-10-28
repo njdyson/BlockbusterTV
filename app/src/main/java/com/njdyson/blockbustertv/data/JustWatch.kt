@@ -53,6 +53,12 @@ class JustWatch(private val services: Services) {
                 SERVICE_PACKAGES[id]?.let { put("packages", JsonArray(listOf(JsonPrimitive(it)))) }
                 put("monetizationTypes", JsonArray(listOf("FLATRATE", "FREE", "ADS").map(::JsonPrimitive)))
             }
+            if (f.english) put("productionCountries", JsonArray(SearchFilters.ENGLISH_COUNTRIES.map(::JsonPrimitive)))
+            f.ageLimit?.let { put("ageCertifications", JsonArray(it.certificates.map(::JsonPrimitive))) }
+            // Browsing by top rated skips titles with few IMDb votes, which otherwise fill the list with 9.8s from 20 votes.
+            if (f.sort == SearchSort.RATING && f.text.isBlank() && f.person == null) {
+                put("imdbVotes", buildJsonObject { put("min", TOP_RATED_MIN_VOTES) })
+            }
         }
         val query = """query(${'$'}filter: TitleFilter!, ${'$'}sort: PopularTitlesSorting!) {
             popularTitles(country: GB, first: 24, sortBy: ${'$'}sort, filter: ${'$'}filter) {
@@ -167,6 +173,7 @@ class JustWatch(private val services: Services) {
 
     companion object {
         private const val API = "https://apis.justwatch.com/graphql"
+        private const val TOP_RATED_MIN_VOTES = 10_000
 
         /** Our service IDs (services.json) to JustWatch package short names, for "streaming on" filters. */
         private val SERVICE_PACKAGES = mapOf(
